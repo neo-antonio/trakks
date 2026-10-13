@@ -92,8 +92,8 @@ const defDir=k=>['Name','CPO','CIR','CPM','Cost/Warm','Ad Set/Audience','Event',
 const ar=k=>F.sort===k?(F.dir==='asc'?' ↑':' ↓'):'';
 const tag=a=>(a.Status?`<span class="st ${esc(a.Status)}">${esc(a.Status)}</span>`:'')+(a.Format?`<span class="st ${esc(a.Format)}">${esc(a.Format)}</span>`:'');
 function noteBlock(a){if(!showNotes||!(a.Hypothesis||a['Conclusion / Notes']))return'';return`<div class="nt">${a.Hypothesis?`<p><b>Hypothesis:</b> ${esc(a.Hypothesis)}</p>`:''}${a['Conclusion / Notes']?`<p><b>Notes:</b> ${esc(a['Conclusion / Notes'])}</p>`:''}</div>`}
-function cardHtml(a,i){const n=(D.points[a.__key]||[]).length,e=embedOf(a),img=/\.(png|jpe?g|gif|webp)(\?|$)/i.test(e);
-  return`<div class="card" data-k="${esc(a.__key)}" style="animation-delay:${Math.min(i,10)*25}ms"><div class="crow"><div class="thumb ${esc(a.Format)}">${img?`<img src="${esc(e)}" alt="">`:(a.Format==='Video'?ICON.video:ICON.image)}</div><div class="cmain"><b title="${esc(nameOf(a))}">${esc(nameOf(a))}</b><small>Launched ${dshort(a['Launch Date'])||'–'}</small><span class="days">${a['Days Active']!=null?fmt('Days Active',a['Days Active'])+' days':''}${n?' · '+n+' pts':''}</span></div><div class="cside"><div class="tags">${tag(a)}</div><b>${fmt('Spent',a.Spent)}</b></div></div>${noteBlock(a)}
+function cardHtml(a,i){const n=(D.points[a.__key]||[]).length,e=embedOf(a),img=thumbSrc(e);
+  return`<div class="card" data-k="${esc(a.__key)}" style="animation-delay:${Math.min(i,10)*25}ms"><div class="crow"><div class="thumb ${esc(a.Format)}">${img?`<img src="${esc(img)}" alt="" referrerpolicy="no-referrer">`:(a.Format==='Video'?ICON.video:ICON.image)}</div><div class="cmain"><b title="${esc(nameOf(a))}">${esc(nameOf(a))}</b><small>Launched ${dshort(a['Launch Date'])||'–'}</small><span class="days">${a['Days Active']!=null?fmt('Days Active',a['Days Active'])+' days':''}${n?' · '+n+' pts':''}</span></div><div class="cside"><div class="tags">${tag(a)}</div><b>${fmt('Spent',a.Spent)}</b></div></div>${noteBlock(a)}
   <div class="cm">${['Purchases','CPO','CIR','CPM'].map(k=>`<div><span>${k}</span><b>${fmt(k,a[k])}</b></div>`).join('')}</div>
   <div class="acts"><button class="ib" data-rn="${esc(a.__key)}" title="Rename" aria-label="Rename ad">${ICON.edit}</button><button class="ib" data-k="${esc(a.__key)}" title="Open" aria-label="Open ad">${ICON.eye}</button></div></div>`}
 function tableHtml(rows){
@@ -118,8 +118,11 @@ function list(){
   if(aid){const el=document.getElementById(aid);if(el){el.focus();try{if(apos!=null)el.setSelectionRange(apos,apos)}catch(e){}}}
 }
 /* ---------- embed + chart ---------- */
+const driveId=r=>{const m=String(r||'').match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?[^\s"']*?id=)([\w-]{15,})/);return m?m[1]:''};
+const thumbSrc=e=>{const d=driveId(e);return d?'https://drive.google.com/thumbnail?id='+d+'&sz=w240':/\.(png|jpe?g|gif|webp)(\?|$)/i.test(e)?e:''};
 function embedHtml(raw){
-  if(!raw)return'';raw=raw.trim();let m=raw.match(/<iframe[^>]+src=["']([^"']+)["']/i),u=m?m[1]:null;
+  if(!raw)return'';raw=raw.trim();
+  const di=driveId(raw);if(di)return`<iframe src="https://drive.google.com/file/d/${di}/preview" sandbox="allow-scripts allow-same-origin allow-popups" allow="autoplay; encrypted-media; fullscreen" loading="lazy" title="Ad preview"></iframe>`;let m=raw.match(/<iframe[^>]+src=["']([^"']+)["']/i),u=m?m[1]:null;
   if(!u){m=raw.match(/cite=["']([^"']+)["']/i);const v=m&&m[1].match(/video\/(\d+)/);if(v)u='https://www.tiktok.com/embed/v2/'+v[1]}
   if(!u&&/^https?:\/\//i.test(raw))u=raw;
   if(!u||!/^https:\/\//i.test(u))return'<p class="note" style="padding:20px">Only https links or iframe embed codes work.</p>';
@@ -138,7 +141,7 @@ function chart(pts,k){
   const grid=[0,.5,1].map(f=>{const y=T+(H-T-B)*f;return`<line x1="${L}" x2="${W-R}" y1="${y}" y2="${y}" stroke="var(--line)"/><text x="${L-6}" y="${y+4}" text-anchor="end" font-size="10" fill="var(--mut)">${fmt(k,hi-(hi-lo)*f)}</text>`}).join('');
   return`<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(k)} over time">${grid}<polyline fill="none" stroke="var(--ac)" stroke-width="2.5" stroke-linejoin="round" points="${line}"/>${v.map((x,i)=>x==null?'':`<circle data-p="${i}" cx="${X(i)}" cy="${Y(x)}" r="${selPt===i?7:5}" fill="${selPt===i?'#fff':'var(--ac)'}" stroke="var(--ac)" stroke-width="2.5" style="cursor:pointer"><title>${esc(pts[i].date)}: ${fmt(k,x)}</title></circle>`).join('')}<text x="${L}" y="${H-6}" font-size="10" fill="var(--mut)">${dshort(pts[0].date)}</text><text x="${W-R}" y="${H-6}" text-anchor="end" font-size="10" fill="var(--mut)">${dshort(pts[pts.length-1].date)}</text></svg>`;
 }
-function mediaUrl(raw){raw=(raw||'').trim();let m=raw.match(/<iframe[^>]+src=["']([^"']+)["']/i)||raw.match(/cite=["']([^"']+)["']/i);let u=m?m[1]:/^https?:\/\//i.test(raw)?raw:'';u=u.replace(/&amp;/g,'&');return/^https:\/\//i.test(u)?u:''}
+function mediaUrl(raw){raw=(raw||'').trim();const di=driveId(raw);if(di)return'https://drive.google.com/file/d/'+di+'/view';let m=raw.match(/<iframe[^>]+src=["']([^"']+)["']/i)||raw.match(/cite=["']([^"']+)["']/i);let u=m?m[1]:/^https?:\/\//i.test(raw)?raw:'';u=u.replace(/&amp;/g,'&');return/^https:\/\//i.test(u)?u:''}
 function mediaBlock(a,emb){if(!emb)return'';if(pvMode==='inline')return`<div class="preview">${embedHtml(emb)}</div>`;
   const u=mediaUrl(emb);return u?`<a class="go linkbtn" href="${esc(u)}" target="_blank" rel="noopener noreferrer">${a.Format==='Video'?ICON.video:ICON.image}<span>Open ${a.Format==='Video'?'video':'image'}</span></a>`:'<p class="note">Add an https link or embed code to open the media.</p>'}
 /* ---------- ad sheet ---------- */
@@ -148,12 +151,21 @@ function sheet(){
   $('#modal').innerHTML=`<div class="modal" id="ov"><div class="sheet" role="dialog" aria-modal="true"><button class="x" id="cl" aria-label="Close">×</button>
   <h2>${esc(nameOf(a))}</h2><div class="row">${tag(a)}<span class="badge">${esc(a.__tab)}</span><button class="ghost sm" id="rn" style="margin-left:auto">Rename</button></div>
   ${nameOf(a)!==a['Ad Name & Preview']?`<p class="note">Original name: ${esc(a['Ad Name & Preview'])}</p>`:''}
-  <div class="sec"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h4 style="margin:0">Media</h4><div class="seg"><button class="${pvMode==='inline'?'on':''}" data-pv="inline">Preview</button><button class="${pvMode==='link'?'on':''}" data-pv="link">Click to view</button></div></div>${mediaBlock(a,emb)}<div class="row fld" style="margin-top:8px"><input id="emb" placeholder="Paste a preview link or embed code" value="${esc(emb)}"><button class="ghost" id="svEmb">${emb?'Update':'Add preview'}</button></div><p class="note">Accepts https iframe embed codes, TikTok video links, and direct image or video links. Some sites block embedding.</p></div>
+  <div class="sec"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h4 style="margin:0">Media</h4><div class="seg"><button class="${pvMode==='inline'?'on':''}" data-pv="inline">Preview</button><button class="${pvMode==='link'?'on':''}" data-pv="link">Click to view</button></div></div>${mediaBlock(a,emb)}<div class="row fld" style="margin-top:8px"><input id="emb" placeholder="Paste a preview link or embed code" value="${esc(emb)}"><button class="ghost" id="svEmb">${emb?'Update':'Add preview'}</button></div><div class="row" style="margin-top:8px"><label class="ghost upl">Upload image or video<input type="file" id="upl" accept="image/*,video/*" hidden></label><span class="note" id="uplst" style="margin:0"></span></div><p class="note">Uploads are saved to your <a href="https://drive.google.com/drive/folders/1Z91Rs7r1KoP_01mm8mo03RTzVn9sWjEl" target="_blank" rel="noopener noreferrer">Drive folder</a> (up to 30 MB). You can also paste a Drive link, iframe embed code, TikTok link, or direct image or video link.</p></div>
   <div class="sec"><h4>Current numbers</h4><div class="kv">${ms.map(k=>`<div><span>${k}</span><b>${fmt(k,a[k])}</b></div>`).join('')}</div></div>
   <div class="sec"><h4>Details</h4><div class="kv">${info.map(k=>`<div><span>${k}</span><b>${esc(a[k])}</b></div>`).join('')}</div>${a.Hypothesis?`<p class="note"><b>Hypothesis:</b> ${esc(a.Hypothesis)}</p>`:''}${a['Conclusion / Notes']?`<p class="note"><b>Notes:</b> ${esc(a['Conclusion / Notes'])}</p>`:''}</div>
   <div class="sec"><h4>Performance over time</h4><div class="fld"><select id="mt">${ms.map(k=>`<option ${k===metric?'selected':''}>${k}</option>`).join('')}</select></div>${chart(pts,metric)}
   <div>${pts.map((p,i)=>`<div class="pt ${selPt===i?'sel':''}"><span>${dshort(p.date)}${p.source==='auto'?'':' (manual)'} · ${esc(metric)} <b>${fmt(metric,p.v[metric])}</b></span><button class="del" data-del="${esc(p.id)}">Delete</button></div>`).join('')}</div></div>
   <div class="sec"><h4>Add a point by hand</h4><div class="form"><div><label>Date</label><input type="date" id="fd" value="${new Date().toISOString().slice(0,10)}"></div>${ms.map(k=>`<div><label>${k}${MONEY.has(k)?' ($)':''}</label><input data-m="${esc(k)}" inputmode="decimal" value="${a[k]??''}"></div>`).join('')}</div><p class="note">CIR accepts 40% or 0.40.</p><button class="go full" id="log" style="margin-top:10px">Save point</button></div></div></div>`;
+}
+async function uploadFile(f){
+  if(!f)return;if(f.size>30*1024*1024)return toast('File is over 30 MB. Add it to the Drive folder and paste its link instead.');
+  const k=openKey,st=$('#uplst');st.textContent='Uploading '+f.name+'…';
+  try{
+    const data=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=()=>rej(new Error('Could not read the file'));r.readAsDataURL(f)});
+    const r=await api('uploadMedia',{key:k,name:f.name,mime:f.type||'application/octet-stream',data});
+    (D.meta[k]=D.meta[k]||{}).embed=r.url;if(openKey===k)sheet();render();toast('Uploaded to Drive');
+  }catch(er){if($('#uplst'))$('#uplst').textContent='';toast(er.message)}
 }
 /* ---------- events ---------- */
 async function doRename(k){const a=ad(k),n=await ask('Rename ad',nameOf(a));if(n==null||n===nameOf(a))return;(D.meta[k]=D.meta[k]||{}).name=n;render();try{await api('rename',{key:k,name:n});toast('Renamed')}catch(e){toast(e.message)}}
@@ -184,7 +196,7 @@ document.addEventListener('click',async e=>{
   }
 });
 document.addEventListener('input',e=>{if(e.target.id==='q'){F.q=e.target.value;list()}if(e.target.id==='minsp'){F.minSpend=e.target.value.replace(/[^\d.]/g,'');list()}if(e.target.id==='navq'){navq=e.target.value;renderNav()}});
-document.addEventListener('change',e=>{const t=e.target;if(t.dataset.f!==undefined){F[t.dataset.f]=t.value;list()}if(t.id==='sort'&&t.value){[F.sort,F.dir]=t.value.split(':');list()}if(t.id==='dfrom'){F.from=t.value;list()}if(t.id==='dto'){F.to=t.value;list()}if(t.id==='shownotes'){showNotes=t.checked;localStorage.setItem('trakks_notes',showNotes?'1':'0');list()}if(t.id==='mt'){metric=t.value;selPt=null;sheet()}});
+document.addEventListener('change',e=>{const t=e.target;if(t.dataset.f!==undefined){F[t.dataset.f]=t.value;list()}if(t.id==='upl'){uploadFile(t.files[0]);t.value='';return}if(t.id==='sort'&&t.value){[F.sort,F.dir]=t.value.split(':');list()}if(t.id==='dfrom'){F.from=t.value;list()}if(t.id==='dto'){F.to=t.value;list()}if(t.id==='shownotes'){showNotes=t.checked;localStorage.setItem('trakks_notes',showNotes?'1':'0');list()}if(t.id==='mt'){metric=t.value;selPt=null;sheet()}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&openKey&&!document.querySelector('.modal[style]')){openKey=null;$('#modal').innerHTML=''}});
 function settings(){
   const m=document.createElement('div');m.className='modal';m.style.zIndex=50;

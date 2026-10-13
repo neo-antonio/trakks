@@ -151,3 +151,5 @@ svg.pc{width:100%;height:auto;display:block}
 .guide{margin-top:16px;color:var(--mut);font-size:12px}
 tr.tot td{font-weight:600;background:var(--bg)}
 @media(max-width:820px){.pgrid{grid-template-columns:1fr}}
+
+.ghost.upl{display:inline-block;cursor:pointer}

@@ -7,6 +7,7 @@
 const TOKEN = 'change-me';
 const TABS = ['TOF Meta', 'MOF Meta', 'BOF Meta', 'TOF TikTok'];
 const NUM = ['Spent','Purchases','Conv. Value','CPO','CIR','CPM','Frequency','CTR (%)','LPVr (%)','Warm','Cost/Warm','Days Active','ThumbS (2s)','HoldR (6s)'];
+const DRIVE_FOLDER_ID = '1Z91Rs7r1KoP_01mm8mo03RTzVn9sWjEl'; // uploaded images and videos are saved here
 const META_SHEET = 'trakks_meta';     // key | name | embed
 const POINT_SHEET = 'trakks_points';  // id | key | date | ts | source | values(JSON)
 const TZ = Session.getScriptTimeZone();
@@ -25,6 +26,7 @@ function handle_(p) {
       case 'embed': upsertMeta_(p.key, 'embed', p.embed); return out_({ ok: true });
       case 'addPoint': return out_({ ok: true, id: addPoint_(p.key, p.date, p.values, 'manual') });
       case 'deletePoint': deletePoint_(p.id); return out_({ ok: true });
+      case 'uploadMedia': return out_(uploadMedia_(p));
       case 'snapshotAll': return out_({ ok: true, count: snapshotAll_(p.date, p.activeOnly !== false) });
       default: return out_({ error: 'Unknown action' });
     }
@@ -131,3 +133,17 @@ function installDailyTrigger() {
   ScriptApp.newTrigger('dailySnapshot').timeBased().everyDays(1).atHour(23).create();
 }
 function dailySnapshot() { snapshotAll_(today_(), true); }
+
+// ---- media uploads: saves to your Drive folder and uses the file as the ad's preview ----
+// Note: the first time you deploy this, Google asks you to authorize Drive access.
+function uploadMedia_(p) {
+  if (!p.data || !p.key) throw new Error('Missing file');
+  const stamp = Utilities.formatDate(new Date(), TZ, 'yyyyMMdd-HHmm');
+  const blob = Utilities.newBlob(Utilities.base64Decode(p.data), p.mime || 'application/octet-stream', stamp + '_' + String(p.name || 'upload').replace(/[\\/:*?"<>|]/g, '_'));
+  const file = DriveApp.getFolderById(DRIVE_FOLDER_ID).createFile(blob);
+  try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); }
+  catch (e) { try { file.setSharing(DriveApp.Access.DOMAIN_WITH_LINK, DriveApp.Permission.VIEW); } catch (e2) { /* inherits folder sharing */ } }
+  const url = 'https://drive.google.com/file/d/' + file.getId() + '/preview';
+  upsertMeta_(p.key, 'embed', url);
+  return { ok: true, id: file.getId(), url: url };
+}
