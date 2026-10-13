@@ -6,6 +6,7 @@
  * Reads the TOF, MOF, BOF and TOTAL tabs (one row per day, with Funnel and Brand columns). Nothing is edited.
  */
 const TOKEN = 'change-me';
+const DRIVE_FOLDER_ID = '1Z91Rs7r1KoP_01mm8mo03RTzVn9sWjEl'; // uploaded images and videos are saved here
 const TABS = ['TOF', 'MOF', 'BOF', 'TOTAL'];
 const FIELDS = ['Date', 'Funnel', 'Brand', 'Spent', 'Impressions', 'Reach', 'Clicks', 'Orders', 'New Customer',
   'App Install', 'In-app Order', 'Web Order', 'Conv. Value', 'LPV', 'Existing CX', 'Add to Cart', 'Checkout'];
@@ -16,6 +17,17 @@ function doGet(e) {
   if (p.token !== TOKEN) return out_({ error: 'Bad token' });
   try {
     if (p.action === 'getPerformance') return out_({ fields: FIELDS, rows: readRows_() });
+    return out_({ error: 'Unknown action' });
+  } catch (err) {
+    return out_({ error: String(err) });
+  }
+}
+
+function doPost(e) {
+  try {
+    const p = JSON.parse(e.postData.contents || '{}');
+    if (p.token !== TOKEN) return out_({ error: 'Bad token' });
+    if (p.action === 'uploadMedia') return out_(uploadMedia_(p));
     return out_({ error: 'Unknown action' });
   } catch (err) {
     return out_({ error: String(err) });
@@ -45,4 +57,26 @@ function readRows_() {
     }
   });
   return rows;
+}
+
+// ---- media uploads: saves to your Drive folder and returns a preview link for trakks to attach to the ad ----
+function uploadMedia_(p) {
+  if (!p.data) throw new Error('Missing file');
+  const stamp = Utilities.formatDate(new Date(), TZ, 'yyyyMMdd-HHmm');
+  const blob = Utilities.newBlob(Utilities.base64Decode(p.data), p.mime || 'application/octet-stream',
+    stamp + '_' + String(p.name || 'upload').replace(/[\\/:*?"<>|]/g, '_'));
+  let file;
+  try { file = DriveApp.getFolderById(DRIVE_FOLDER_ID).createFile(blob); }
+  catch (e) { throw new Error('The script cannot write to the Drive folder. Run testDrive once in the Apps Script editor, approve access, then redeploy as a new version. (' + e.message + ')'); }
+  try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); }
+  catch (e) { try { file.setSharing(DriveApp.Access.DOMAIN_WITH_LINK, DriveApp.Permission.VIEW); } catch (e2) { /* inherits folder sharing */ } }
+  return { ok: true, id: file.getId(), url: 'https://drive.google.com/file/d/' + file.getId() + '/preview' };
+}
+
+// Run this ONCE from the Apps Script editor (select testDrive > Run) and approve access.
+// Afterwards: Deploy > Manage deployments > Edit > Version: New version > Deploy.
+function testDrive() {
+  const f = DriveApp.getFolderById(DRIVE_FOLDER_ID);
+  f.createFile('trakks-test.txt', 'ok').setTrashed(true);
+  Logger.log('Drive folder OK: ' + f.getName());
 }

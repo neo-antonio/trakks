@@ -94,7 +94,7 @@ const tag=a=>(a.Status?`<span class="st ${esc(a.Status)}">${esc(a.Status)}</span
 function noteBlock(a){if(!showNotes||!(a.Hypothesis||a['Conclusion / Notes']))return'';return`<div class="nt">${a.Hypothesis?`<p><b>Hypothesis:</b> ${esc(a.Hypothesis)}</p>`:''}${a['Conclusion / Notes']?`<p><b>Notes:</b> ${esc(a['Conclusion / Notes'])}</p>`:''}</div>`}
 function cardHtml(a,i){const n=(D.points[a.__key]||[]).length,e=embedOf(a),img=thumbSrc(e);
   return`<div class="card" data-k="${esc(a.__key)}" style="animation-delay:${Math.min(i,10)*25}ms"><div class="crow"><div class="thumb ${esc(a.Format)}">${img?`<img src="${esc(img)}" alt="" referrerpolicy="no-referrer">`:(a.Format==='Video'?ICON.video:ICON.image)}</div><div class="cmain"><b title="${esc(nameOf(a))}">${esc(nameOf(a))}</b><small>Launched ${dshort(a['Launch Date'])||'–'}</small><span class="days">${a['Days Active']!=null?fmt('Days Active',a['Days Active'])+' days':''}${n?' · '+n+' pts':''}</span></div><div class="cside"><div class="tags">${tag(a)}</div><b>${fmt('Spent',a.Spent)}</b></div></div>${noteBlock(a)}
-  <div class="cm">${['Purchases','CPO','CIR','CPM'].map(k=>`<div><span>${k}</span><b>${fmt(k,a[k])}</b></div>`).join('')}</div>
+  <div class="cm">${['Purchases','CPO','CIR','Conv. Value'].map(k=>`<div><span>${k}</span><b>${fmt(k,a[k])}</b></div>`).join('')}</div>
   <div class="acts"><button class="ib" data-rn="${esc(a.__key)}" title="Rename" aria-label="Rename ad">${ICON.edit}</button><button class="ib" data-k="${esc(a.__key)}" title="Open" aria-label="Open ad">${ICON.eye}</button></div></div>`}
 function tableHtml(rows){
   const cols=['Status','Format','Event','Ad Set/Audience','Spent','Purchases','CPO','CIR','CPM','Frequency','CTR (%)','LPVr (%)','Warm','Cost/Warm'];
@@ -159,11 +159,13 @@ function sheet(){
   <div class="sec"><h4>Add a point by hand</h4><div class="form"><div><label>Date</label><input type="date" id="fd" value="${new Date().toISOString().slice(0,10)}"></div>${ms.map(k=>`<div><label>${k}${MONEY.has(k)?' ($)':''}</label><input data-m="${esc(k)}" inputmode="decimal" value="${a[k]??''}"></div>`).join('')}</div><p class="note">CIR accepts 40% or 0.40.</p><button class="go full" id="log" style="margin-top:10px">Save point</button></div></div></div>`;
 }
 async function uploadFile(f){
-  if(!f)return;if(f.size>30*1024*1024)return toast('File is over 30 MB. Add it to the Drive folder and paste its link instead.');
+  if(!f)return;if(!cfg.perfUrl)return toast('Add the Meta Performance URL in Settings first. Uploads go through that script.');if(f.size>30*1024*1024)return toast('File is over 30 MB. Add it to the Drive folder and paste its link instead.');
   const k=openKey,st=$('#uplst');st.textContent='Uploading '+f.name+'…';
   try{
     const data=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=()=>rej(new Error('Could not read the file'));r.readAsDataURL(f)});
-    const r=await api('uploadMedia',{key:k,name:f.name,mime:f.type||'application/octet-stream',data});
+    const up=await(await fetch(cfg.perfUrl,{method:'POST',body:JSON.stringify({token:cfg.token,action:'uploadMedia',name:f.name,mime:f.type||'application/octet-stream',data})})).json();
+    if(up.error)throw new Error(up.error);
+    await api('embed',{key:k,embed:up.url});const r=up;
     (D.meta[k]=D.meta[k]||{}).embed=r.url;if(openKey===k)sheet();render();toast('Uploaded to Drive');
   }catch(er){if($('#uplst'))$('#uplst').textContent='';toast(er.message)}
 }
@@ -200,7 +202,7 @@ document.addEventListener('change',e=>{const t=e.target;if(t.dataset.f!==undefin
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&openKey&&!document.querySelector('.modal[style]')){openKey=null;$('#modal').innerHTML=''}});
 function settings(){
   const m=document.createElement('div');m.className='modal';m.style.zIndex=50;
-  m.innerHTML=`<div class="sheet small"><h2>Settings</h2><div class="fld"><label class="note">Web App URL (ends in /exec)</label><input id="cu" value="${esc(cfg.url||'')}" placeholder="https://script.google.com/macros/s/…/exec"></div><div class="fld" style="margin-top:10px"><label class="note">Meta Performance URL (from the daily tracker script)</label><input id="cp" value="${esc(cfg.perfUrl||'')}" placeholder="https://script.google.com/macros/s/…/exec"></div><div class="fld" style="margin-top:10px"><label class="note">Token (same as TOKEN in Code.gs)</label><input id="ct" type="password" value="${esc(cfg.token||'')}"></div><button class="go full" style="margin-top:14px">Save and load</button></div>`;
+  m.innerHTML=`<div class="sheet small"><h2>Settings</h2><div class="fld"><label class="note">Web App URL (ends in /exec)</label><input id="cu" value="${esc(cfg.url||'')}" placeholder="https://script.google.com/macros/s/…/exec"></div><div class="fld" style="margin-top:10px"><label class="note">Meta Performance + uploads URL (from the daily tracker script)</label><input id="cp" value="${esc(cfg.perfUrl||'')}" placeholder="https://script.google.com/macros/s/…/exec"></div><div class="fld" style="margin-top:10px"><label class="note">Token (same as TOKEN in Code.gs)</label><input id="ct" type="password" value="${esc(cfg.token||'')}"></div><button class="go full" style="margin-top:14px">Save and load</button></div>`;
   document.body.appendChild(m);m.onclick=e=>{if(e.target===m&&(cfg.url||cfg.perfUrl))m.remove()};
   m.querySelector('.go').onclick=()=>{cfg={url:m.querySelector('#cu').value.trim(),perfUrl:m.querySelector('#cp').value.trim(),token:m.querySelector('#ct').value.trim()};localStorage.setItem('trakks_cfg',JSON.stringify(cfg));m.remove();load()};
 }
