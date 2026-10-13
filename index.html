@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>trakks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="styles.css">
+</head><body>
+<div class="shell">
+  <aside class="side" id="side">
+    <div class="brand"><div class="logo">t</div><div><b>trakks</b><small>ad performance visualizer</small></div></div>
+    <div class="sbox"><input id="navq" placeholder="Search menu" aria-label="Search menu"></div>
+    <nav id="nav"></nav>
+    <div class="sfoot"><button class="navbtn" id="settings"><span class="ni"><svg viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h2M10 12h10M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg><span>Settings</span></span></button></div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+  <section class="content">
+    <div class="topbar"><button class="icon" id="burger" aria-label="Menu">☰</button><h1 id="title">Home</h1><button class="ghost" id="refresh">Refresh</button></div>
+    <main id="main"></main>
+  </section>
+</div>
+<div id="modal"></div>
+<script src="performance.js"></script>
+<script src="app.js"></script>
+</body></html>
