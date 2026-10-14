@@ -36,6 +36,7 @@ const IC={
   link:'<path d="M10 13.5a4.5 4.5 0 006.4 0l3-3a4.5 4.5 0 00-6.4-6.4l-1 1"/><path d="M14 10.5a4.5 4.5 0 00-6.4 0l-3 3a4.5 4.5 0 006.4 6.4l1-1"/>',
   refresh:'<path d="M20 11a8 8 0 00-14.5-4.5L4 8M4 4v4h4M4 13a8 8 0 0014.5 4.5L20 16M20 20v-4h-4"/>',
   x:'<path d="M6 6l12 12M18 6L6 18"/>',
+  request:'<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9zM9 12h6M9 16h4"/>',
   logout:'<path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>'
 };
 const ic=(n,c)=>`<svg ${SV}${c?` class="${c}"`:''}>${IC[n]||''}</svg>`;
@@ -43,7 +44,7 @@ const ic=(n,c)=>`<svg ${SV}${c?` class="${c}"`:''}>${IC[n]||''}</svg>`;
 /* ---------- storage + cache ---------- */
 const ls=(k,d)=>{try{return localStorage.getItem(k)||d}catch(e){return d}};
 const lset=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
-const CK='trakks:v2:';
+const CK=DEMO?'trakks:demo:':'trakks:v2:';
 function cget(k){try{const s=localStorage.getItem(CK+k);return s?JSON.parse(s):null}catch(e){return null}}
 function cset(k,v){const s=JSON.stringify(v);try{localStorage.setItem(CK+k,s);return true}catch(e){
   try{Object.keys(localStorage).filter(x=>x.startsWith(CK)&&x!==CK+k).forEach(x=>localStorage.removeItem(x));localStorage.setItem(CK+k,s);return true}catch(e2){return false}}}
@@ -51,7 +52,7 @@ function rel(ts){const s=Math.round((Date.now()-ts)/1000);if(s<60)return'just no
 const fmtUpd=u=>u&&(u.date||u.time)?[u.date,u.time].filter(Boolean).join(' at '):'';
 
 /* ---------- state ---------- */
-let TOKEN=ls('trakks_token','');
+let TOKEN=DEMO?'demo':ls('trakks_token','');
 let D={ads:[],meta:{},points:{}},UPD={},TS={},ERR={},LOAD={};
 let view=ls('trakks_view','home'),openKey=null,metric='Spent',selPt=null,navq='',PICK=null;
 let F={q:'',status:'Active',funnel:'ALL',sort:'Launch Date',dir:'desc'};
@@ -79,6 +80,7 @@ async function fetchJson(url,opts,ms){
   }finally{clearTimeout(t)}
 }
 function api(action,body,bid){
+  if(DEMO)return demoApi(action,body,bid);
   const url=brandOf(bid).ads;
   return body?fetchJson(url,{method:'POST',body:JSON.stringify({token:TOKEN,action,...body})}):fetchJson(url+'?action='+action+'&token='+encodeURIComponent(TOKEN));
 }
@@ -165,6 +167,7 @@ function renderStatus(){
   }else if(view==='home'){
     const err=BRANDS.filter(b=>ERR[b.id]).length;if(err){t=err+' of '+BRANDS.length+' accounts could not refresh · showing saved data';bad=true}
   }
+  if(DEMO&&!t)t='Demo mode · sample data';
   el.textContent=t;el.classList.toggle('bad',bad);
   const b=$('#refresh');b.disabled=!!busy;b.innerHTML=ic('refresh')+'<span>'+(busy?'Refreshing…':'Refresh')+'</span>';
 }
@@ -179,7 +182,7 @@ function render(keepSheet){
 function lastAuto(){let d='',n=0;Object.values(D.points).flat().forEach(p=>{if(p.source==='auto'){if(p.date>d){d=p.date;n=0}if(p.date===d)n++}});return{d,n}}
 function brandCard(b,ch){
   const loaded=!!TS[b.id],a=agg(D.ads.filter(x=>x.__brand===b.id&&x.__ch===ch));
-  const links=ch==='meta'?[[b.meta.manager,'megaphone','Ads Manager'],[b.meta.reports,'doc','Reports']]:[[b.tiktok.manager,'megaphone','Ads Manager']];
+  const links=ch==='meta'?[[b.meta.manager,'megaphone','Ads Manager'],[b.meta.reports,'doc','Reports'],[b.request,'request','Request Creatives']]:[[b.tiktok.manager,'megaphone','Ads Manager']];
   const sub=loaded?`${a.act} of ${a.n} ads active`:(ERR[b.id]?'Could not load':'Loading…');
   const v=(k,x)=>loaded?fmt(k,x):'–';
   return`<div class="hs-card click" data-v="${ch}:${b.id}"><div class="hc-head"><span class="tile-ic">${ic(b.icon)}</span><div class="hc-t"><b>${esc(b.name)}</b><small>${esc(sub)}</small></div>${ic('ext','tile-go')}</div>
@@ -243,7 +246,7 @@ function list(){
   const ae=document.activeElement,aid=ae&&ae.id,apos=ae&&ae.selectionStart;
   const sels=FILT.map(([k,l])=>{const vals=[...new Set(base.map(a=>String(a[k]??'None')))].sort();return vals.length<2?'':`<select data-f="${esc(k)}" aria-label="${l}"><option value="">${l}: all</option>${vals.map(v=>`<option ${F[k]===v?'selected':''}>${esc(v)}</option>`).join('')}</select>`}).join('');
   const btns=i.ch==='tt'?`<a class="ghost btn-ic" href="${esc(b.tiktok.manager)}" target="_blank" rel="noopener noreferrer">${ic('megaphone')}<span>TikTok Ads Manager</span></a>`
-    :`<a class="ghost btn-ic" href="${esc(b.meta.manager)}" target="_blank" rel="noopener noreferrer">${ic('megaphone')}<span>Meta Ads Manager</span></a><a class="ghost btn-ic" href="${esc(b.meta.reports)}" target="_blank" rel="noopener noreferrer">${ic('doc')}<span>Meta Reports</span></a>`;
+    :`<a class="ghost btn-ic" href="${esc(b.meta.manager)}" target="_blank" rel="noopener noreferrer">${ic('megaphone')}<span>Meta Ads Manager</span></a><a class="ghost btn-ic" href="${esc(b.meta.reports)}" target="_blank" rel="noopener noreferrer">${ic('doc')}<span>Meta Reports</span></a><a class="ghost btn-ic" href="${esc(b.request)}" target="_blank" rel="noopener noreferrer">${ic('request')}<span>Request Creatives</span></a>`;
   main.innerHTML=`${ERR[b.id]?`<div class="banner">Could not refresh (${esc(ERR[b.id])}). Showing data saved ${rel(TS[b.id])}. <button class="ghost sm" id="retry" style="margin-left:6px">Try again</button></div>`:''}
   <div class="actions"><button class="ghost btn-ic" id="addAd" type="button">${ic('plus')}<span>Add ad</span></button>${btns}</div>
   <div class="tabs" role="tablist">${FUNNELS.map(f=>`<button class="tab ${F.funnel===f?'on':''}" role="tab" aria-selected="${F.funnel===f}" data-ft="${f}">${f}</button>`).join('')}</div>
@@ -329,13 +332,19 @@ async function saveEdit(){
   const b2=$('#svEdit');if(b2){b2.disabled=false;b2.textContent='Save changes'}
 }
 const ADD=[['Ad Name & Preview','Ad name'],['Ad ID','Ad ID'],['Status','Status','sel',['Active','Paused']],['Launch Date','Launch date','date'],['Format','Format'],['Event','Event'],['Ad Set/Audience','Audience / ad set'],['Performance','Performance'],['Campaign','Campaign'],['Campaign ID','Campaign ID'],['Ad Set ID','Ad Set ID'],['Variable for Testing','Variable for testing'],['Hypothesis','Hypothesis','area'],['Conclusion / Notes','Notes','area']];
+let ADFILE=null;
 function addAdPopup(){
-  const i=viewInfo(view);if(!i)return;
+  const i=viewInfo(view);if(!i)return;ADFILE=null;
   const pool=viewAds(view);let tabs=[...new Set(pool.map(a=>a.__tab))];
   if(!tabs.length)tabs=i.ch==='tt'?['TikTok']:['TOF','MOF','BOF'];
   const def=tabs.find(t=>t.slice(0,3).toUpperCase()===F.funnel)||tabs[0],today=new Date().toISOString().slice(0,10);
   const m=popup(`<h3>Add an ad</h3><p class="note" style="margin:-6px 0 12px;text-align:center">${esc(i.b.name)} · ${i.ch==='tt'?'TikTok':'Meta'}. It is added as a new row in the sheet.</p>
   <div class="form ef"><div class="w2"><label>Tab (funnel)</label><select id="adTab">${tabs.map(t=>`<option ${t===def?'selected':''}>${esc(t)}</option>`).join('')}</select></div>${ADD.map((d,n)=>fieldHtml(d,n,d[0]==='Status'?'Active':d[0]==='Launch Date'?today:'',pool,'data-n')).join('')}</div>
+  <div class="sec" style="margin-top:14px"><h4>Preview, link or upload (optional)</h4>
+  <div class="field"><input id="adEmb" placeholder="Preview link or embed code (Drive, TikTok, image or video link)" aria-label="Preview link or embed code" autocomplete="off"></div>
+  <div class="row" style="margin-top:8px;flex-wrap:wrap"><label class="ghost btn-ic" style="cursor:pointer">${ic('upload')}<span>Upload image or video</span><input type="file" id="adUpl" accept="image/*,video/*" hidden></label><span class="note" id="adUplSt" style="margin:0"></span></div>
+  <div class="field" style="margin-top:8px"><input id="adProd" type="url" placeholder="Product link (https://…)" aria-label="Product link" autocomplete="off"></div>
+  <p class="note">A preview link or an uploaded file is shown on the ad. An upload takes priority over a pasted link. Files up to 30 MB are saved to Drive.</p></div>
   <p class="note">Spend, purchases and the other numbers fill in from the sheet's own formulas once the ad has an Ad ID.</p>
   <div class="row" style="margin-top:12px"><button class="ghost" style="flex:1" data-close>Cancel</button><button class="go" id="adGo" style="flex:1;width:auto">Add ad</button></div>`);
   m.firstElementChild.classList.remove('small');m.firstElementChild.style.maxWidth='560px';
@@ -345,9 +354,25 @@ async function submitAd(){
   const i=viewInfo(view);if(!i)return;const fields={};
   document.querySelectorAll('[data-n]').forEach(x=>{const v=x.value.trim();if(v)fields[x.dataset.n]=v});
   if(!fields['Ad Name & Preview'])return toast('Enter the ad name');
-  const b=$('#adGo');b.disabled=true;b.textContent='Adding…';
-  try{await api('addAd',{tab:$('#adTab').value,fields},i.b.id);document.querySelectorAll('.modal.pop').forEach(m=>m.remove());toast('Ad added to the sheet');loadBrand(i.b.id)}
-  catch(e){b.disabled=false;b.textContent='Add ad';toast(/Unknown action/.test(e.message)?'This brand\'s Apps Script is an older version. Paste the updated script and redeploy it.':e.message)}
+  const emb0=$('#adEmb').value.trim(),prod=$('#adProd').value.trim();
+  if(emb0&&!/^(https:\/\/|<iframe|<blockquote)/i.test(emb0))return toast('Previews must be an https link or an embed code');
+  if(prod&&!okUrl(prod))return toast('Product links start with https://');
+  const b=$('#adGo'),bid=i.b.id,tab=$('#adTab').value;b.disabled=true;b.textContent=ADFILE?'Uploading…':'Adding…';
+  let emb=emb0;
+  try{
+    if(ADFILE)emb=(await uploadToDrive(ADFILE)).url;                     // an uploaded file wins over a pasted link
+    b.textContent='Adding…';
+    await api('addAd',{tab,fields},bid);
+  }catch(e){b.disabled=false;b.textContent='Add ad';return toast(/Unknown action/.test(e.message)?'This brand\'s Apps Script is an older version. Paste the updated script and redeploy it.':e.message)}
+  document.querySelectorAll('.modal.pop').forEach(m=>m.remove());ADFILE=null;toast('Ad added to the sheet');
+  await loadBrand(bid);
+  if(!emb&&!prod)return;
+  /* the sheet assigns the row key, so find the new ad after the reload and attach its preview and link */
+  const a=D.ads.filter(x=>x.__brand===bid&&x.__ch===i.ch&&x.__tab===tab&&x['Ad Name & Preview']===fields['Ad Name & Preview']&&(!fields['Ad ID']||String(x['Ad ID'])===fields['Ad ID'])).pop();
+  if(!a)return toast('Ad added, but its preview could not be attached. Open the ad and add it there.');
+  const m=(D.meta[a.__key]=D.meta[a.__key]||{});if(emb)m.embed=emb;if(prod)m.product=prod;persist(bid);render(true);
+  try{if(emb)await api('embed',{key:a.__orig,embed:emb},bid);if(prod)await api('product',{key:a.__orig,product:prod},bid);toast('Preview and link saved')}
+  catch(e){toast(e.message)}
 }
 
 /* ---------- ad sheet ---------- */
@@ -359,7 +384,7 @@ function sheet(){
   $('#modal').innerHTML=`<div class="modal" id="ov"><div class="sheet" role="dialog" aria-modal="true"><button class="x" id="cl" aria-label="Close">${ic('x')}</button>
   <h2>${esc(nameOf(a))}</h2><div class="row" style="flex-wrap:wrap">${tag(a)}<span class="badge">${esc(a.__tab)}</span><button class="ghost sm btn-ic" id="rn" style="margin-left:auto">${ic('edit')}<span>Rename</span></button></div>
   ${nameOf(a)!==a['Ad Name & Preview']?`<p class="note">Original name: ${esc(a['Ad Name & Preview'])}</p>`:''}
-  <div class="sec"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h4 style="margin:0">Media</h4><div class="seg"><button class="${pvMode==='inline'?'on':''}" data-pv="inline">Preview</button><button class="${pvMode==='link'?'on':''}" data-pv="link">Click to view</button></div></div>${mediaBlock(a,emb)}<div class="row" style="margin-top:8px"><input id="emb" placeholder="Paste a preview link or embed code" value="${esc(emb)}"><button class="ghost" id="svEmb">${emb?'Update':'Add preview'}</button></div><div class="row" style="margin-top:8px"><label class="ghost btn-ic" style="cursor:pointer">${ic('upload')}<span>Upload image or video</span><input type="file" id="upl" accept="image/*,video/*" hidden></label><span class="note" id="uplst" style="margin:0"></span></div><p class="note">Uploads are saved to your <a href="https://drive.google.com/drive/folders/1Z91Rs7r1KoP_01mm8mo03RTzVn9sWjEl" target="_blank" rel="noopener noreferrer">Drive folder</a> (up to 30 MB). You can also paste a Drive link, iframe embed code, TikTok link, or direct image or video link.</p></div>
+  <div class="sec"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h4 style="margin:0">Media</h4><div class="seg"><button class="${pvMode==='inline'?'on':''}" data-pv="inline">Preview</button><button class="${pvMode==='link'?'on':''}" data-pv="link">Click to view</button></div></div>${mediaBlock(a,emb)}<div class="row" style="margin-top:8px"><input id="emb" placeholder="Paste a preview link or embed code" value="${esc(emb)}"><button class="ghost" id="svEmb">${emb?'Update':'Add preview'}</button></div><div class="row" style="margin-top:8px"><label class="ghost btn-ic" style="cursor:pointer">${ic('upload')}<span>Upload image or video</span><input type="file" id="upl" accept="image/*,video/*" hidden></label><span class="note" id="uplst" style="margin:0"></span></div><p class="note">Uploads are saved to your <a href="${DEMO?'https://drive.google.com/':'https://drive.google.com/drive/folders/1Z91Rs7r1KoP_01mm8mo03RTzVn9sWjEl'}" target="_blank" rel="noopener noreferrer">Drive folder</a> (up to 30 MB). You can also paste a Drive link, iframe embed code, TikTok link, or direct image or video link.</p></div>
   <div class="sec"><h4>Product link</h4><div class="row"><input id="plink" type="url" placeholder="https://potico.ph/product/apple-of-my-eye" value="${esc(prod)}" aria-label="Product link"><button class="ghost" id="svProd">${prod?'Update':'Save link'}</button></div>
   <div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="ghost btn-ic" id="findImg" ${pk&&pk.loading?'disabled':''}>${ic('image')}<span>Find product images</span></button>${prod?`<a class="ghost btn-ic" href="${esc(prod)}" target="_blank" rel="noopener noreferrer">${ic('ext')}<span>Open page</span></a>`:''}${pimg?`<button class="ghost danger" id="rmImg">Remove picture</button>`:''}</div>
   ${pk?pickHtml(pk,pimg):''}${pimg&&!pk?`<div class="prod-cur"><img src="${esc(pimg)}" alt="" referrerpolicy="no-referrer"><span>Default picture. It is used when this ad has no preview.</span></div>`:''}
@@ -373,14 +398,19 @@ function sheet(){
   <div class="sec"><h4>Add a point by hand</h4><div class="form"><div><label>Date</label><input type="date" id="fd" value="${new Date().toISOString().slice(0,10)}"></div>${ms.map(k=>`<div><label>${k}${MONEY.has(k)?' ($)':PCTF.has(k)&&!/%/.test(k)?' (%)':''}</label><input data-m="${esc(k)}" inputmode="decimal" value="${PCTF.has(k)&&a[k]!=null?+(a[k]*100).toFixed(3):a[k]??''}"></div>`).join('')}</div><p class="note">Percent fields (CIR, CTR, LPVr…) are entered as percentages, for example 0.34 for 0.34%.</p><button class="go" id="log" style="margin-top:10px">Save point</button></div></div></div>`;
   const ov=$('#ov');if(ov&&sc)ov.scrollTop=sc;
 }
+/* uploads an image or video to Drive and returns {url}; demo mode attaches a sample picture instead */
+async function uploadToDrive(f){
+  if(f.size>30*1024*1024)throw new Error('File is over 30 MB. Add it to the Drive folder and paste its link instead.');
+  if(DEMO){await new Promise(r=>setTimeout(r,700));return{url:'https://picsum.photos/seed/'+encodeURIComponent(f.name)+'/640/800.jpg'}}
+  const data=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=()=>rej(new Error('Could not read the file'));r.readAsDataURL(f)});
+  return fetchJson(UPLOAD_URL,{method:'POST',body:JSON.stringify({token:TOKEN,action:'uploadMedia',name:f.name,mime:f.type||'application/octet-stream',data})},120000);
+}
 async function uploadFile(f){
-  if(!f)return;if(f.size>30*1024*1024)return toast('File is over 30 MB. Add it to the Drive folder and paste its link instead.');
-  const k=openKey,a0=ad(k),st=$('#uplst');st.textContent='Uploading '+f.name+'…';
+  if(!f)return;const k=openKey,a0=ad(k),st=$('#uplst');st.textContent='Uploading '+f.name+'…';
   try{
-    const data=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=()=>rej(new Error('Could not read the file'));r.readAsDataURL(f)});
-    const up=await fetchJson(UPLOAD_URL,{method:'POST',body:JSON.stringify({token:TOKEN,action:'uploadMedia',name:f.name,mime:f.type||'application/octet-stream',data})},120000);
+    const up=await uploadToDrive(f);
     await api('embed',{key:a0.__orig,embed:up.url},a0.__brand);
-    (D.meta[k]=D.meta[k]||{}).embed=up.url;persist(a0.__brand);if(openKey===k)sheet();render(true);toast('Uploaded to Drive');
+    (D.meta[k]=D.meta[k]||{}).embed=up.url;persist(a0.__brand);if(openKey===k)sheet();render(true);toast(DEMO?'Demo: sample picture attached':'Uploaded to Drive');
   }catch(er){if($('#uplst'))$('#uplst').textContent='';toast(er.message)}
 }
 
@@ -406,7 +436,7 @@ function settingsPopup(){
   const t=ls('trakks_theme','light'),stamps=BRANDS.filter(b=>TS[b.id]).map(b=>TS[b.id]);
   popup(`<h3>Settings</h3><div class="field"><label class="dl"><span>Appearance</span><select id="thm"><option value="light" ${t==='light'?'selected':''}>Light</option><option value="dark" ${t==='dark'?'selected':''}>Dark</option><option value="system" ${t==='system'?'selected':''}>Match my device</option></select></label></div>
   <p class="note" style="margin:0 0 12px">Ads and performance are saved on this device so pages open instantly${stamps.length?`. Last refreshed ${rel(Math.max(...stamps))}`:''}.</p>
-  <div class="pp-btns"><button class="ghost btn-ic" id="clr">${ic('refresh')}<span>Clear saved data</span></button><button class="ghost btn-ic" id="out">${ic('logout')}<span>Sign out</span></button><button class="ghost" data-close>Close</button></div>`);
+  <div class="pp-btns"><button class="ghost btn-ic" id="clr">${ic('refresh')}<span>Clear saved data</span></button><button class="ghost btn-ic" id="out">${ic('logout')}<span>${DEMO?'Exit demo':'Sign out'}</span></button><button class="ghost" data-close>Close</button></div>`);
 }
 function applyTheme(){const t=ls('trakks_theme','light'),dark=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.dataset.theme=dark?'dark':'light';const m=document.querySelector('meta[name=theme-color]');if(m)m.content=dark?'#0e0e0f':'#ffffff'}
 function showLogin(msg){$('#login').hidden=false;$('#lgErr').textContent=msg||'';setTimeout(()=>{const i=$('#lgTok');if(i){i.value='';i.focus()}},50)}
@@ -422,6 +452,7 @@ const closeNav=()=>document.documentElement.classList.remove('sb-open');
 function go(v){view=v;lset('trakks_view',v);F={q:'',status:'Active',funnel:F.funnel,sort:F.sort,dir:F.dir};closeNav();render();scrollTo(0,0)}
 document.addEventListener('click',async e=>{
   const t=e.target,c=s=>t.closest(s);
+  if(c('#lgDemo')){lset('trakks_demo','1');location.reload();return}
   if(c('#burger')){document.documentElement.classList.add('sb-open');return}
   if(c('#scrim')){closeNav();return}
   if(c('a[href]:not([href="#"])'))return;                       // real links (Ads Manager, Reports, sheets) behave normally
@@ -434,8 +465,8 @@ document.addEventListener('click',async e=>{
   if(c('#backend')){closeNav();return backendPopup()}
   if(c('#niktin')){closeNav();return niktinPopup()}
   if(c('#thm'))return;
-  if(c('#clr')){Object.keys(localStorage).filter(x=>x.startsWith(CK)).forEach(x=>localStorage.removeItem(x));D={ads:[],meta:{},points:{}};UPD={};TS={};document.querySelectorAll('.modal.pop').forEach(m=>m.remove());toast('Saved data cleared');render();refreshAll();return}
-  if(c('#out')){try{localStorage.removeItem('trakks_token')}catch(x){}location.reload();return}
+  if(c('#clr')){if(typeof demoReset==='function')demoReset();Object.keys(localStorage).filter(x=>x.startsWith(CK)).forEach(x=>localStorage.removeItem(x));D={ads:[],meta:{},points:{}};UPD={};TS={};document.querySelectorAll('.modal.pop').forEach(m=>m.remove());toast('Saved data cleared');render();refreshAll();return}
+  if(c('#out')){try{localStorage.removeItem('trakks_token');localStorage.removeItem('trakks_demo')}catch(x){}location.reload();return}
   if(c('#refresh'))return refreshAll();
   if(c('#retry'))return refreshAll();
   if(c('[data-ft]')){F.funnel=c('[data-ft]').dataset.ft;list();return}
@@ -480,6 +511,7 @@ document.addEventListener('input',e=>{const t=e.target;if(t.id==='q'){F.q=t.valu
 document.addEventListener('change',e=>{const t=e.target;
   if(t.dataset.f!==undefined){F[t.dataset.f]=t.value;list()}
   if(t.id==='upl'){uploadFile(t.files[0]);t.value='';return}
+  if(t.id==='adUpl'){ADFILE=t.files[0]||null;$('#adUplSt').textContent=ADFILE?ADFILE.name:'';return}
   if(t.id==='sort'&&t.value){[F.sort,F.dir]=t.value.split(':');list()}
   if(t.id==='dfrom'){F.from=t.value;list()}if(t.id==='dto'){F.to=t.value;list()}
   if(t.id==='shownotes'){showNotes=t.checked;lset('trakks_notes',showNotes?'1':'0');list()}

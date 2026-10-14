@@ -1,4 +1,6 @@
 /* trakks: fixed configuration. Deployment links live here, so nobody has to paste them in the app. */
+/* demo mode is switched on from the sign-in screen and uses sample data only */
+const DEMO=(()=>{try{return localStorage.getItem('trakks_demo')==='1'}catch(e){return false}})();
 const LINKS = {
   upload: 'https://docs.google.com/spreadsheets/d/1eBCyRvBkeyU-FuGSXACUGPyFWe52euhDc8RSAjA3Khc/edit?gid=936638371#gid=936638371',
   brain: 'https://fs-brain-app-p3ez.vercel.app/',
@@ -11,6 +13,7 @@ const LINKS = {
 const BRANDS = [
   {
     id: 'fsph', name: 'FlowerStore PH', short: 'FSPH', icon: 'flower',
+    request: 'https://trello.com/b/EFLqIr3y/ph-fs-graphics',   /* Trello board for creative requests */
     ads: 'https://script.google.com/macros/s/AKfycbx6gCnH03xEHZpye-6kcba-ZFIinI2uSFzpfbdqX9HWA_z0cQpB3pqApMGrFscFywRW3w/exec',
     perf: 'https://script.google.com/macros/s/AKfycbyVLQq4B3suwv18i1W-tGb6u09HzCL4IQTGWVdvks9an3XO-t33o0ISVoBXORKlVhfY/exec',
     meta: {
@@ -20,6 +23,7 @@ const BRANDS = [
   },
   {
     id: 'poph', name: 'Potico PH', short: 'POPH', icon: 'gift',
+    request: 'https://trello.com/b/Sq22AHOI/ph-potico-graphics',   /* Trello board for creative requests */
     ads: 'https://script.google.com/macros/s/AKfycbzGUDsbi8LHmsflfFskxpPau_PO3rf3-y3zTq3GTnIt8C3q9-IiyU2SJFW08cA33-2A/exec',
     perf: 'https://script.google.com/macros/s/AKfycbw0g7YzOoNPrN1jBpPqF5fRb_-NSrQxu82FAIrrLTaulqqLjGSXqS8pGvsyzQq93MQO/exec',
     meta: {
@@ -29,6 +33,7 @@ const BRANDS = [
   },
   {
     id: 'posg', name: 'Potico SG', short: 'POSG', icon: 'gift',
+    request: 'https://trello.com/b/LVnDQNoW/sg-potico-graphics',   /* Trello board for creative requests */
     /* one script reads both the Meta tabs and the TikTok tabs (the sheet pulls from two sheets with IMPORTRANGE) */
     ads: 'https://script.google.com/macros/s/AKfycbxkY_ca2bA1YDPv-7qVA74ydmS4xXgON9YvdpwxKkHzfLSwaeJ2o1iPMiposR4bektZ/exec',
     perf: 'https://script.google.com/macros/s/AKfycbxPXcgSfgGxFpeAOhhJzp2PZTGWId8qGUGmIKe5XwHdMNfjfOEd5yiT5lojoRR6BOz5/exec',
@@ -42,6 +47,7 @@ const BRANDS = [
   },
   {
     id: 'bull', name: 'Bull Audio', short: 'BA', icon: 'headphones',
+    request: 'https://trello.com/b/yEcLeDJs/bull-audio',   /* Trello board for creative requests */
     ads: 'https://script.google.com/macros/s/AKfycbzMWTjuy1zuvqze4j3A66sna7J2mT3TXQgWN0xuX_tzplnvorCgMOBiCprSnctXLj7gTQ/exec',
     perf: 'https://script.google.com/macros/s/AKfycbwOHBIjSy_UZ3udLLEH_Cj3mRxBgZA3DXwaPf51oR9_hVT9B0wDR18n3YMXBx0iKwJm/exec',
     meta: {
@@ -68,3 +74,11 @@ const DAILY_SHEETS = [
 
 /* Uploaded images and videos are saved to Drive by this script (the Potico SG daily script has Drive access) */
 const UPLOAD_URL = BRANDS.find(b => b.id === 'posg').perf;
+
+/* Demo mode: every outside link goes to a public landing page, so no real account, sheet or board is exposed */
+if(DEMO){
+  const META='https://www.facebook.com/business/tools/ads-manager',TT='https://ads.tiktok.com/business/en/solutions/ads-manager',SHEETS='https://docs.google.com/spreadsheets',TRELLO='https://trello.com/';
+  LINKS.upload=SHEETS;LINKS.brain='https://claude.ai/';LINKS.google='https://ads.google.com/';LINKS.legacy='https://lookerstudio.google.com/';
+  BRANDS.forEach(b=>{b.meta.manager=META;b.meta.reports=META;if(b.tiktok)b.tiktok.manager=TT;b.request=TRELLO});
+  AD_SHEETS.forEach(x=>x[1]=SHEETS);DAILY_SHEETS.forEach(x=>x[1]=SHEETS);
+}

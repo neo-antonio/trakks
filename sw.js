@@ -1,7 +1,7 @@
 /* trakks service worker: the app shell and fonts open instantly from the saved copy and update quietly in the background.
    Data requests to Google Apps Script always go to the network (the app keeps its own saved copy of the data). */
-const V = 'trakks-shell-v3';
-const SHELL = ['./', 'index.html', 'styles.css', 'config.js', 'app.js', 'performance.js'];
+const V = 'trakks-shell-v4';
+const SHELL = ['./', 'index.html', 'styles.css', 'config.js', 'demo.js', 'app.js', 'performance.js'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(V).then(c => Promise.all(SHELL.map(u => c.add(u).catch(() => {})))).then(() => self.skipWaiting()));
 });

@@ -22,6 +22,8 @@ try{var t=localStorage.getItem('trakks_theme')||'light';if(t==='dark'||(t==='sys
     <div class="field"><input id="lgTok" type="password" autocomplete="current-password" placeholder="Access token" aria-label="Access token" required></div>
     <p class="lg-err" id="lgErr" role="alert"></p>
     <button class="go" id="lgGo" type="submit">Sign in</button>
+    <button class="ghost" id="lgDemo" type="button" style="width:100%;margin-top:8px">Preview demo</button>
+    <p class="note" style="text-align:center;margin:10px 0 0">The demo uses sample data and does not connect to any account.</p>
   </form>
 </div>
 
@@ -51,6 +53,7 @@ try{var t=localStorage.getItem('trakks_theme')||'light';if(t==='dark'||(t==='sys
 <div id="modal"></div>
 
 <script src="config.js"></script>
+<script src="demo.js"></script>
 <script src="app.js"></script>
 <script src="performance.js"></script>
 </body></html>

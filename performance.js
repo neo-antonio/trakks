@@ -41,7 +41,7 @@ async function loadPerf(){
   PLOADING=true;if(view==='perf')perfPage();if(typeof renderStatus==='function')renderStatus();
   await Promise.all(BRANDS.map(async b=>{
     try{
-      const j=await fetchJson(b.perf+'?action=getPerformance&token='+encodeURIComponent(TOKEN));
+      const j=DEMO?await demoPerf(b.id):await fetchJson(b.perf+'?action=getPerformance&token='+encodeURIComponent(TOKEN));
       PB[b.id]={fields:j.fields,rows:j.rows,updated:j.updated||null,ts:Date.now()};
       cset('perf:'+b.id,PB[b.id]);delete PERRS[b.id];
     }catch(e){if(e.auth)return authLost();PERRS[b.id]=e.message}
