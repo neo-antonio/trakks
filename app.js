@@ -117,6 +117,11 @@ async function loadBrand(bid){
   }
   delete LOAD[bid];render(true);
 }
+/* A redraw replaces the filter dropdowns, which closes one that is open. While a dropdown in the page is being used, list() waits.
+   The hold starts when a dropdown is pressed and ends on a pick, on any other press, on Escape, or after 15 seconds. */
+let SELHOLD=0,PEND=false;
+const selHeld=()=>SELHOLD&&Date.now()-SELHOLD<15000;
+function selFlush(){SELHOLD=0;if(PEND){PEND=false;render(true)}}
 function refreshAll(){BRANDS.forEach(b=>loadBrand(b.id));if(typeof loadPerf==='function')loadPerf()}
 
 /* ---------- helpers ---------- */
@@ -222,7 +227,7 @@ function noteBlock(a){if(!showNotes||!(a.Hypothesis||a['Conclusion / Notes']))re
 const thumbFor=a=>thumbSrc(embedOf(a))||imageOf(a);
 function cardHtml(a){
   const n=(D.points[a.__key]||[]).length,img=thumbFor(a),prod=productOf(a);
-  return`<div class="card" data-k="${esc(a.__key)}"><div class="crow"><div class="thumb">${img?`<img src="${esc(img)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:(a.Format==='Video'?ic('video'):ic('image'))}</div><div class="cmain"><b title="${esc(nameOf(a))}">${esc(nameOf(a))}</b><small>Launched ${dshort(a['Launch Date'])||'–'}</small><span class="days">${a['Days Active']!=null?fmt('Days Active',a['Days Active'])+' days':''}${n?' · '+n+' pts':''}</span>${a.Performance?`<span class="pf ${perfCls(a.Performance)}">${esc(a.Performance)}</span>`:''}</div><div class="cside"><div class="tags">${tag(a)}</div><b>${fmt('Spent',a.Spent)}</b></div></div>${noteBlock(a)}
+  return`<div class="card" data-k="${esc(a.__key)}"><div class="crow"><div class="thumb">${img?`<img src="${esc(img)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:(a.Format==='Video'?ic('video'):ic('image'))}</div><div class="cmain"><b title="${esc(nameOf(a))}">${esc(nameOf(a))}</b><small>Launched ${dshort(a['Launch Date'])||'–'}</small><span class="days">${a['Days Active']!=null?fmt('Days Active',a['Days Active'])+' days':''}${n?' · '+n+' pts':''}</span>${a.Performance?`<span class="pf ${perfCls(a.Performance)}">${esc(a.Performance)}</span>`:''}</div><div class="cside"><div class="tags">${tag(a)}</div><b>${fmt('Spent',a.Spent)}</b></div></div><div class="cid"><div><span>Ad ID</span><b title="${esc(a['Ad ID'])}">${esc(a['Ad ID']||'–')}</b></div><div><span>Ad set</span><b title="${esc(a['Ad Set/Audience'])}">${esc(a['Ad Set/Audience']||'–')}</b></div><div><span>Event</span><b title="${esc(a.Event)}">${esc(a.Event||'–')}</b></div></div>${noteBlock(a)}
   <div class="cm">${['Purchases','CPO','CIR','Conv. Value'].map(k=>`<div><span>${k}</span><b>${fmt(k,a[k])}</b></div>`).join('')}</div>
   <div class="acts"><button class="ib" data-rn="${esc(a.__key)}" title="Rename" aria-label="Rename ad">${ic('edit')}</button>${prod?`<a class="ib" href="${esc(prod)}" target="_blank" rel="noopener noreferrer" title="Open product page" aria-label="Open product page">${ic('bag')}</a>`:''}<button class="ib" data-k="${esc(a.__key)}" title="Open" aria-label="Open ad">${ic('eye')}</button></div></div>`;
 }
@@ -238,13 +243,14 @@ function tableHtml(rows){
     return`<td class="${typeof v==='number'?'num':''}">${fmt(k,v)}</td>`}).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 function list(){
+  if(selHeld()){PEND=true;setTimeout(()=>{if(PEND&&!selHeld())selFlush()},15200);return}
   const i=viewInfo(view),main=$('#main');
   if(!i){view='home';lset('trakks_view',view);return render()}
   const b=i.b;
   if(!TS[b.id]){main.innerHTML=ERR[b.id]?`<div class="empty">${esc(ERR[b.id])}<br><br><button class="ghost" id="retry">Try again</button></div>`:'<div class="loading">Loading your ads…</div>';return}
   const base=viewAds(view),rows=rowsFor(),s=agg(rows);
   const ae=document.activeElement,aid=ae&&ae.id,apos=ae&&ae.selectionStart;
-  const sels=FILT.map(([k,l])=>{const vals=[...new Set(base.map(a=>String(a[k]??'None')))].sort();return vals.length<2?'':`<select data-f="${esc(k)}" aria-label="${l}"><option value="">${l}: all</option>${vals.map(v=>`<option ${F[k]===v?'selected':''}>${esc(v)}</option>`).join('')}</select>`}).join('');
+  const sels=FILT.map(([k,l])=>{const vals=[...new Set(base.map(a=>String(a[k]??'None')))].sort();return vals.length<2?'':`<select data-f="${esc(k)}" aria-label="${l}"><option value="">${l}: all</option>${vals.map(v=>`<option value="${esc(v)}" title="${esc(v)}" ${F[k]===v?'selected':''}>${esc(v.length>60?v.slice(0,59)+'…':v)}</option>`).join('')}</select>`}).join('');
   const btns=i.ch==='tt'?`<a class="ghost btn-ic" href="${esc(b.tiktok.manager)}" target="_blank" rel="noopener noreferrer">${ic('megaphone')}<span>TikTok Ads Manager</span></a>`
     :`<a class="ghost btn-ic" href="${esc(b.meta.manager)}" target="_blank" rel="noopener noreferrer">${ic('megaphone')}<span>Meta Ads Manager</span></a><a class="ghost btn-ic" href="${esc(b.meta.reports)}" target="_blank" rel="noopener noreferrer">${ic('doc')}<span>Meta Reports</span></a><a class="ghost btn-ic" href="${esc(b.request)}" target="_blank" rel="noopener noreferrer">${ic('request')}<span>Request Creatives</span></a>`;
   main.innerHTML=`${ERR[b.id]?`<div class="banner">Could not refresh (${esc(ERR[b.id])}). Showing data saved ${rel(TS[b.id])}. <button class="ghost sm" id="retry" style="margin-left:6px">Try again</button></div>`:''}
@@ -506,9 +512,13 @@ document.addEventListener('click',async e=>{
     const date=$('#fd').value,a0=ad(openKey);t.disabled=true;try{const r=await api('addPoint',{key:a0.__orig,date,values:v},a0.__brand);(D.points[openKey]=D.points[openKey]||[]).push({id:r.id,date,ts:Date.now(),source:'manual',v});persist(a0.__brand);sheet();render(true);toast('Point saved')}catch(er){toast(er.message);t.disabled=false}
   }
 });
+document.addEventListener('pointerdown',e=>{const s=e.target.closest&&e.target.closest('#main select');
+  if(s){SELHOLD=Date.now();return}
+  if(SELHOLD){SELHOLD=0;if(PEND)setTimeout(selFlush,600)}},true);
 document.addEventListener('toggle',e=>{if(e.target.id==='editDet')editOpen=e.target.open},true);
 document.addEventListener('input',e=>{const t=e.target;if(t.id==='q'){F.q=t.value;list()}if(t.id==='minsp'){F.minSpend=t.value.replace(/[^\d.]/g,'');list()}if(t.id==='navq'){navq=t.value;renderNav()}});
 document.addEventListener('change',e=>{const t=e.target;
+  if(t.tagName==='SELECT'&&t.closest('#main')){SELHOLD=0;PEND=false}
   if(t.dataset.f!==undefined){F[t.dataset.f]=t.value;list()}
   if(t.id==='upl'){uploadFile(t.files[0]);t.value='';return}
   if(t.id==='adUpl'){ADFILE=t.files[0]||null;$('#adUplSt').textContent=ADFILE?ADFILE.name:'';return}
@@ -517,7 +527,7 @@ document.addEventListener('change',e=>{const t=e.target;
   if(t.id==='shownotes'){showNotes=t.checked;lset('trakks_notes',showNotes?'1':'0');list()}
   if(t.id==='mt'){metric=t.value;selPt=null;sheet()}
   if(t.id==='thm'){lset('trakks_theme',t.value);applyTheme()}});
-document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;const pops=document.querySelectorAll('.modal.pop');
+document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(SELHOLD){selFlush();return}const pops=document.querySelectorAll('.modal.pop');
   if(pops.length){pops[pops.length-1].remove();return}if(openKey){openKey=null;PICK=null;$('#modal').innerHTML=''}else closeNav()});
 $('#lgForm').addEventListener('submit',async e=>{
   e.preventDefault();const tok=$('#lgTok').value.trim(),b=$('#lgGo');if(!tok)return;b.disabled=true;b.textContent='Checking…';$('#lgErr').textContent='';
