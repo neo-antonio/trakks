@@ -32,8 +32,8 @@ const FN={
   BOF:{cir:.06,daily:12,ctr:.02,fr:2.4,cpmx:2,aud:['Cart abandoners 14d','Past purchasers 180d']}
 };
 const HYP=['Leading with the delivery promise will lower CPO for gift buyers.','A creator voiceover will hold attention past 6 seconds better than music only.','Showing the price early will filter clicks and lift the landing page view rate.','Putting two products in the first frame will raise order value.','A softer offer will keep CIR under target.'];
-const NOTE={'Really Good':'Winning. CIR has stayed under target, scale about 20% every 3 days.','Good':'Solid. Keep running and watch frequency.','Okay':'Mixed results. Needs a stronger first 2 seconds.','Declining':'CPO is up week over week and frequency is passing 2. Prepare a refresh.','Not Good':'CPO is well above target. Replace with a new angle.'};
-const ACTION={'Really Good':'Scale budget','Good':'Keep running','Okay':'Test new hook','Declining':'Refresh creative','Not Good':'Pause'};
+const NOTE={'Really Good':'Winning. CIR has stayed under target, scale about 20% every 3 days.','Good':'Solid. Keep running and watch frequency.','Okay':'Mixed results. Needs a stronger first 2 seconds.','Below Average':'CPO is up week over week and frequency is passing 2. Prepare a refresh.',"Can't Say Yet":'Too early to judge. Let it gather more spend.','Not Good':'CPO is well above target. Replace with a new angle.'};
+const ACTION={'Really Good':'Scale budget','Good':'Keep running','Okay':'Test new hook','Below Average':'Refresh creative',"Can't Say Yet":'Keep running','Not Good':'Pause'};
 
 /* ---------- ads + points ---------- */
 function genAd(bid,ch,i,name,format,tab,fn,paused){
@@ -41,7 +41,7 @@ function genAd(bid,ch,i,name,format,tab,fn,paused){
   const days=8+Math.floor(r()*52),stopAge=paused?3+Math.floor(r()*12):0;
   const launch=ago(days+stopAge),stop=paused?ago(stopAge):'';
   const q=r(),drift=q>.5?-.12*(q-.4):.55*(.5-q);                 // negative = getting cheaper over time
-  const perf=q>.78?'Really Good':q>.5?'Good':q>.32?'Okay':q>.15?'Declining':'Not Good';
+  const perf=days<12?"Can't Say Yet":q>.78?'Really Good':q>.5?'Good':q>.32?'Okay':q>.15?'Below Average':'Not Good';
   const aov=b.aov*(.92+.16*r()),cpo0=f.cir*aov*(.85+.3*r()),vid=format==='Video';
   const daily=f.daily*(b.spend/700)*(ch==='tt'?.6:1)*(.7+.6*r());
   const cpm0=b.cpm*f.cpmx*(.85+.3*r())*(ch==='tt'?.7:1),ctr0=f.ctr*(.8+.5*r()),lpvr=.62+.2*r();
@@ -60,7 +60,7 @@ function genAd(bid,ch,i,name,format,tab,fn,paused){
     if(vid){v['ThumbS (2s)']=R3(thumb*(1-.1*t));v['HoldR (6s)']=R3(hold)}
     pts.push({id:'dp-'+bid+ch+i+'-'+k,date:iso(new Date(t0+d*DAY)),ts:t0+d*DAY,source:'auto',v});last=v;
   }
-  const row={__key:key,__tab:tab,'Ad Name & Preview':name,'Ad ID':'1202'+String(hash(name+bid)).padStart(10,'0'),Status:paused?'Paused':'Active',Format:format,Performance:paused?'Okay':perf,
+  const row={__key:key,__tab:tab,'Ad Name & Preview':name,'Ad ID':'1202'+String(hash(name+bid)).padStart(10,'0'),Status:paused?'Paused':'Active',Format:format,Performance:paused&&perf==="Can't Say Yet"?'Okay':perf,
     Event:'Purchase','Ad Set/Audience':pick(r,f.aud),'Confidence Score':days>30?'High':days>14?'Medium':'Low',Action:paused?'Stopped':ACTION[perf],'Variable for Testing':pick(r,['Hook','Offer','Creative format','Copy','Audience']),
     'Launch Date':launch,Campaign:b.short+' | '+fn+' | '+(ch==='tt'?'TikTok':'Meta')+' Always-on','Campaign ID':'2385'+String(hash(bid+fn)).padStart(10,'0'),'Ad Set ID':'2385'+String(hash(name)).padStart(10,'0'),...last};
   if(stop)row['Stop Date']=stop;
@@ -82,7 +82,7 @@ function build(bid){
 }
 
 /* ---------- store (kept on this device, so demo edits survive a refresh) ---------- */
-const SK='trakks:demo:store:',MEM={};
+const SK='trakks:demo:s2:',MEM={};
 function load(bid){if(MEM[bid])return MEM[bid];let d=null;try{const s=localStorage.getItem(SK+bid);if(s)d=JSON.parse(s)}catch(e){}return MEM[bid]=d||build(bid)}
 function save(bid){try{localStorage.setItem(SK+bid,JSON.stringify(MEM[bid]))}catch(e){}}
 const clone=o=>JSON.parse(JSON.stringify(o));

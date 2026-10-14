@@ -221,7 +221,7 @@ function rowsFor(){
 const SORTS=[['Launch Date:desc','Newest'],['Launch Date:asc','Oldest'],['Spent:desc','Highest spend'],['Spent:asc','Lowest spend'],['Purchases:desc','Most purchases'],['Purchases:asc','Fewest purchases'],['CPO:asc','Lowest CPO'],['CPO:desc','Highest CPO'],['CIR:asc','Lowest CIR'],['CIR:desc','Highest CIR'],['Name:asc','Name A–Z'],['Name:desc','Name Z–A']];
 const defDir=k=>['Name','CPO','CIR','CPM','Cost/Warm','Ad Set/Audience','Event','Status','Format','Hypothesis','Conclusion / Notes'].includes(k)?'asc':'desc';
 const ar=k=>F.sort===k?(F.dir==='asc'?' ↑':' ↓'):'';
-const perfCls=p=>/^(really good|good)$/i.test(p)?'g':/^(declining|not good)$/i.test(p)?'b':/^okay$/i.test(p)?'o':'';
+const perfCls=p=>/^(really good|good)$/i.test(p)?'g':/^(below average|declining|not good)$/i.test(p)?'b':/^okay$/i.test(p)?'o':'';
 const tag=a=>(a.Status?`<span class="st ${esc(a.Status)}">${esc(a.Status)}</span>`:'')+(a.Format?`<span class="st ${esc(a.Format)}">${esc(a.Format)}</span>`:'');
 function noteBlock(a){if(!showNotes||!(a.Hypothesis||a['Conclusion / Notes']))return'';return`<div class="nt">${a.Hypothesis?`<p><b>Hypothesis:</b> ${esc(a.Hypothesis)}</p>`:''}${a['Conclusion / Notes']?`<p><b>Notes:</b> ${esc(a['Conclusion / Notes'])}</p>`:''}</div>`}
 const thumbFor=a=>thumbSrc(embedOf(a))||imageOf(a);
@@ -312,12 +312,13 @@ function pickHtml(pk,cur){
 /* ---------- edit details + add ad ---------- */
 let editOpen=false;
 /* [sheet column, label, type, fixed options] */
-const EDIT=[['Status','Status','sel',['Active','Paused']],['Performance','Performance'],['Event','Event'],['Ad Set/Audience','Audience / ad set'],['Confidence Score','Confidence score'],['Action','Action'],['Variable for Testing','Variable for testing'],['Format','Format'],['Launch Date','Launch date','date'],['Stop Date','Stop date','date'],['Campaign','Campaign'],['Campaign ID','Campaign ID'],['Ad Set ID','Ad Set ID'],['Hypothesis','Hypothesis','area'],['Conclusion / Notes','Notes','area']];
+const PERF_OPTS=['Really Good','Good','Okay','Below Average','Not Good','Can\'t Say Yet'];   /* the sheet only accepts these values in the Performance column */
+const EDIT=[['Status','Status','sel',['Active','Paused']],['Performance','Performance','sel',PERF_OPTS,true],['Event','Event'],['Ad Set/Audience','Audience / ad set'],['Confidence Score','Confidence score'],['Action','Action'],['Variable for Testing','Variable for testing'],['Format','Format'],['Launch Date','Launch date','date'],['Stop Date','Stop date','date'],['Campaign','Campaign'],['Campaign ID','Campaign ID'],['Ad Set ID','Ad Set ID'],['Hypothesis','Hypothesis','area'],['Conclusion / Notes','Notes','area']];
 function fieldHtml(def,i,v,pool,attr){
-  const[k,l,ty,fixed]=def;v=v==null?'':String(v);
+  const[k,l,ty,fixed,blank]=def;v=v==null?'':String(v);
   if(ty==='area')return`<div class="w2"><label>${l}</label><textarea ${attr}="${esc(k)}" rows="2">${esc(v)}</textarea></div>`;
   if(ty==='date')return`<div><label>${l}</label><input type="date" ${attr}="${esc(k)}" value="${esc(v.slice(0,10))}"></div>`;
-  if(ty==='sel')return`<div><label>${l}</label><select ${attr}="${esc(k)}">${[...new Set([...fixed,v].filter(Boolean))].map(o=>`<option ${o===v?'selected':''}>${esc(o)}</option>`).join('')}</select></div>`;
+  if(ty==='sel')return`<div><label>${l}</label><select ${attr}="${esc(k)}">${blank?'<option value=""></option>':''}${[...new Set([...fixed,v].filter(Boolean))].map(o=>`<option ${o===v?'selected':''}>${esc(o)}</option>`).join('')}</select></div>`;
   const vals=[...new Set(pool.map(x=>x[k]).filter(x=>x!=null&&x!==''&&typeof x!=='number').map(String))].sort().slice(0,60);
   return`<div><label>${l}</label><input ${attr}="${esc(k)}" list="dl${attr}${i}" value="${esc(v)}" autocomplete="off"><datalist id="dl${attr}${i}">${vals.map(o=>`<option value="${esc(o)}">`).join('')}</datalist></div>`;
 }
@@ -337,7 +338,7 @@ async function saveEdit(){
     toast(/Unknown action/.test(e.message)?'This brand\'s Apps Script is an older version. Paste the updated script and redeploy it.':e.message)}
   const b2=$('#svEdit');if(b2){b2.disabled=false;b2.textContent='Save changes'}
 }
-const ADD=[['Ad Name & Preview','Ad name'],['Ad ID','Ad ID'],['Status','Status','sel',['Active','Paused']],['Launch Date','Launch date','date'],['Format','Format'],['Event','Event'],['Ad Set/Audience','Audience / ad set'],['Performance','Performance'],['Campaign','Campaign'],['Campaign ID','Campaign ID'],['Ad Set ID','Ad Set ID'],['Variable for Testing','Variable for testing'],['Hypothesis','Hypothesis','area'],['Conclusion / Notes','Notes','area']];
+const ADD=[['Ad Name & Preview','Ad name'],['Ad ID','Ad ID'],['Status','Status','sel',['Active','Paused']],['Launch Date','Launch date','date'],['Format','Format'],['Event','Event'],['Ad Set/Audience','Audience / ad set'],['Performance','Performance','sel',PERF_OPTS,true],['Campaign','Campaign'],['Campaign ID','Campaign ID'],['Ad Set ID','Ad Set ID'],['Variable for Testing','Variable for testing'],['Hypothesis','Hypothesis','area'],['Conclusion / Notes','Notes','area']];
 let ADFILE=null;
 function addAdPopup(){
   const i=viewInfo(view);if(!i)return;ADFILE=null;
