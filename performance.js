@@ -1,8 +1,8 @@
 /* trakks – Meta Performance: daily, weekly (Mon–Sun) and monthly views */
-let PD=null,PLOADING=false,PERR='',PCH={},pcid=0;
-const P={preset:'30',from:'',to:'',brand:'',funnel:'TOTAL',mode:localStorage.getItem('trakks_pmode')||'daily',tab:'perf'};
+let PD=null,PB={},PERRS={},PLOADING=false,PERR='',PCH={},pcid=0;
+const P={preset:'30',from:'',to:'',brand:'',funnel:'TOTAL',mode:ls('trakks_pmode','daily'),tab:'perf',cmp:'',cf:'',ct:''};
 const PSUM=['Spent','Impressions','Reach','Clicks','Orders','New Customer','App Install','In-app Order','Web Order','Conv. Value','LPV','Existing CX','Add to Cart','Checkout'];
-const PCOL=['#4f5bd5','#e8a317','#1aa57a','#e0533d','#8b5cf6','#0ea5e9'];
+const PCOL=['#2f6fe0','#e8a317','#1aa57a','#e0533d','#8b5cf6','#0ea5e9'];
 const GUIDE={TOF:[.4,.5],MOF:[.3,.4],BOF:[.02,.04],TOTAL:[.15,.25]};
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 /* ---- dates (UTC) ---- */
@@ -25,13 +25,29 @@ function compact(v){const a=Math.abs(v),f=(x,u)=>{let s=Math.abs(x)<10?x.toFixed
   return a>=1e9?f(v/1e9,'B'):a>=1e6?f(v/1e6,'M'):a>=1e4?f(v/1e3,'K'):Math.round(v).toLocaleString()}
 function fv(t,v,axis){if(v==null||isNaN(v))return'–';
   switch(t){case'money':return(v<0?'-':'')+'$'+(Math.abs(v)>=1000?compact(Math.abs(v)):Math.abs(v).toFixed(axis?0:2));case'int':return compact(v);case'pct':return(v*100).toFixed(axis?0:1)+'%';case'x':return v.toFixed(axis?1:2)+'x';default:return v.toFixed(2)}}
-/* ---- data ---- */
+/* ---- data: saved copy first, then refresh in the background ---- */
+function pdRebuild(){
+  const rows=[];
+  BRANDS.forEach(b=>{const c=PB[b.id];if(!c)return;c.rows.forEach(r=>{const o={};c.fields.forEach((k,i)=>o[k]=r[i]);o.Brand=b.name;rows.push(o)})});
+  PD=rows.length?rows:null;
+}
+function pHydrate(){BRANDS.forEach(b=>{const c=cget('perf:'+b.id);if(c&&c.rows)PB[b.id]=c});pdRebuild()}
+function pStatus(){
+  const bad=BRANDS.filter(b=>PERRS[b.id]),have=BRANDS.filter(b=>PB[b.id]);
+  if(bad.length)return{t:bad.length+' of '+BRANDS.length+' accounts could not refresh · showing saved data',bad:true};
+  return{t:'',bad:false};
+}
 async function loadPerf(){
-  if(!cfg.perfUrl){PERR='Add your Meta Performance URL in Settings.';perfPage();return}
-  PLOADING=true;PERR='';perfPage();
-  try{const r=await fetch(cfg.perfUrl+'?action=getPerformance&token='+encodeURIComponent(cfg.token||''));const j=await r.json();if(j.error)throw new Error(j.error);
-    PD=j.rows.map(r=>{const o={};j.fields.forEach((k,i)=>o[k]=r[i]);return o})}catch(e){PERR=e.message}
-  PLOADING=false;perfPage();
+  PLOADING=true;if(view==='perf')perfPage();if(typeof renderStatus==='function')renderStatus();
+  await Promise.all(BRANDS.map(async b=>{
+    try{
+      const j=await fetchJson(b.perf+'?action=getPerformance&token='+encodeURIComponent(TOKEN));
+      PB[b.id]={fields:j.fields,rows:j.rows,updated:j.updated||null,ts:Date.now()};
+      cset('perf:'+b.id,PB[b.id]);delete PERRS[b.id];
+    }catch(e){if(e.auth)return authLost();PERRS[b.id]=e.message}
+  }));
+  PLOADING=false;pdRebuild();
+  if(view==='perf')perfPage();if(typeof renderStatus==='function')renderStatus();
 }
 function prange(maxD,minD){let f,t=maxD;const p=P.preset;
   if(p==='7')f=addDays(maxD,-6);else if(p==='30')f=addDays(maxD,-29);else if(p==='90')f=addDays(maxD,-89);
@@ -39,6 +55,20 @@ function prange(maxD,minD){let f,t=maxD;const p=P.preset;
   else if(p==='lm'){const first=maxD.slice(0,8)+'01';t=addDays(first,-1);f=t.slice(0,8)+'01'}
   else{f=P.from||minD;t=P.to||maxD}
   return{from:f,to:t}}
+/* ---- compare range: WoW, MoM, YoY or custom ---- */
+const dim=(y,m)=>new Date(Date.UTC(y,m+1,0)).getUTCDate();
+function shiftM(s,n){const d=pdt(s),y=d.getUTCFullYear(),m=d.getUTCMonth()+n,ny=y+Math.floor(m/12),nm=((m%12)+12)%12;return isoD(new Date(Date.UTC(ny,nm,Math.min(d.getUTCDate(),dim(ny,nm)))))}
+const isFullMonth=(f,t)=>f.slice(8)==='01'&&f.slice(0,7)===t.slice(0,7)&&+t.slice(8)===dim(+t.slice(0,4),+t.slice(5,7)-1);
+function crange(from,to){const c=P.cmp;if(!c)return null;
+  if(c==='wow')return{from:addDays(from,-7),to:addDays(to,-7)};
+  if(c==='mom'){if(isFullMonth(from,to)){const f=shiftM(from,-1);return{from:f,to:f.slice(0,8)+String(dim(+f.slice(0,4),+f.slice(5,7)-1)).padStart(2,'0')}}return{from:shiftM(from,-1),to:shiftM(to,-1)}}
+  if(c==='yoy'){if(isFullMonth(from,to)){const f=shiftM(from,-12);return{from:f,to:f.slice(0,8)+String(dim(+f.slice(0,4),+f.slice(5,7)-1)).padStart(2,'0')}}return{from:shiftM(from,-12),to:shiftM(to,-12)}}
+  if(P.cf&&P.ct&&P.cf<=P.ct)return{from:P.cf,to:P.ct};return null}
+const CMPN={wow:'week over week',mom:'month over month',yoy:'year over year',custom:'custom period'};
+const LOWGOOD=new Set(['CPO','CIR','CAC','CPM']);
+function pctChg(c,p){return c==null||p==null||!p?null:(c-p)/Math.abs(p)}
+function chgTxt(x){return x==null?'–':(x>0?'+':x<0?'−':'')+Math.abs(x*100).toFixed(1)+'%'}
+function chgCls(x,f){if(x==null||Math.abs(x)<.0005)return'';return(x>0)===!LOWGOOD.has(f)?'good':'badd'}
 /* ---- charts ---- */
 function nice(lo,hi){const x=(hi-lo)/4,p=Math.pow(10,Math.floor(Math.log10(x))),f=x/p,s=(f<=1?1:f<=2?2:f<=5?5:10)*p;return{lo:Math.floor(lo/s+1e-9)*s,hi:Math.ceil(hi/s-1e-9)*s,s}}
 function pchart(title,keys,series,o={}){const id='pc'+(pcid++);PCH[id]={keys,series,o};
@@ -69,12 +99,12 @@ let PX={};
 function perfPage(){
   const el=$('#main');el.classList.add('wide');PCH={};pcid=0;
   if(PLOADING&&!PD){el.innerHTML='<div class="loading">Loading performance data…</div>';return}
-  if(PERR&&!PD){el.innerHTML=`<div class="empty">${esc(PERR)}<br><br><button class="ghost" id="settings2">Open Settings</button></div>`;return}
-  if(!PD){loadPerf();return}
+  if(!PD){const er=Object.values(PERRS)[0]||'No performance data yet.';el.innerHTML=`<div class="empty">${esc(er)}<br><br><button class="ghost" id="retry">Try again</button></div>`;return}
   const dates=PD.map(r=>r.Date).sort(),maxD=dates[dates.length-1],minD=dates[0],{from,to}=prange(maxD,minD),m=P.mode;
-  const brands=[...new Set(PD.map(r=>r.Brand).filter(Boolean))].sort(),useB=P.brand?[P.brand]:brands;
+  const brands=BRANDS.map(b=>b.name).filter(n=>PD.some(r=>r.Brand===n)),useB=P.brand?[P.brand]:brands;
   const bc=b=>PCOL[brands.indexOf(b)%PCOL.length];
   const base=PD.filter(r=>r.Funnel===P.funnel&&(!P.brand||r.Brand===P.brand)),cur=base.filter(r=>r.Date>=from&&r.Date<=to);
+  const cr=crange(from,to),prevRows=cr?base.filter(r=>r.Date>=cr.from&&r.Date<=cr.to):[],PT=cr?tot(prevRows):null,hasPrev=!!(cr&&prevRows.length);
   const keys=[];for(let k=keyOf(from,m),e=keyOf(to,m);k<=e;k=nextKey(k,m))keys.push(k);
   const yr=pdt(to).getUTCFullYear()!==pdt(from).getUTCFullYear()||(pdt(to)-pdt(from))>3e10;
   PX={title:'Chart',lab:(k,full)=>plabel(k,m,full,yr)};
@@ -82,7 +112,13 @@ function perfPage(){
   const one=(f,t,n,c,extra={})=>({n,d:S(x=>x[f]),t,c,kind:'line',...extra});
   const byBrand=f=>useB.map(b=>{const mp=totMap(cur.filter(r=>r.Brand===b),m);return{n:b,d:S(x=>x[f],mp),t:f==='CIR'?'pct':'money',c:bc(b),kind:'line'}});
   const pyoy=(f,t,title)=>pchart(title+' vs Previous Year',keys,[one(f,t,'This year',PCOL[0]),{n:'Previous year',d:keys.map(k=>{const p=am[prevKey(k,m)];return p?p[f]:null}),t,c:'#a9adc4',kind:'line',dash:1}]);
-  const guide=GUIDE[P.funnel],kpi=(l,f,t,cap)=>`<div class="kpi"><span>${l}</span><b>${fv(t,T[f]).replace(/^(\$?[\d.,]+)(\w*)$/,'$1$2')}</b>${cap?`<small class="${cap[1]}">${cap[0]}</small>`:''}</div>`;
+  const pkeys=[];if(cr)for(let k=keyOf(cr.from,m),e=keyOf(cr.to,m);k<=e;k=nextKey(k,m))pkeys.push(k);
+  const pm_=cr?totMap(prevRows,m):{};
+  const pcmp=(f,t,title)=>pchart(title+' vs comparison period',keys,[one(f,t,'Selected',PCOL[0]),{n:'Comparison',d:keys.map((k,i)=>{const p=pm_[pkeys[i]];return p?p[f]:null}),t,c:'#a9adc4',kind:'line',dash:1}]);
+  const guide=GUIDE[P.funnel],kpi=(l,f,t,cap)=>{
+    let cmpH='';
+    if(cr){const pv=hasPrev?PT[f]:null,ch=pctChg(T[f],pv);cmpH=pv==null&&!hasPrev?`<small class="cmpl">no data in comparison period</small>`:`<small class="cmpl">(vs ${fv(t,pv)} prev.)</small><span class="dlt ${chgCls(ch,f)}">${chgTxt(ch)}</span>`}
+    return`<div class="kpi"><span>${l}</span><b>${fv(t,T[f])}</b>${cmpH}${cap?`<small class="${cap[1]}">${cap[0]}</small>`:''}</div>`};
   const cirCap=guide?[`Target ${guide[0]*100}–${guide[1]*100}%`,T.CIR==null?'':T.CIR>guide[1]?'warn':T.CIR<guide[0]?'low':'ok']:null;
   let body='';
   if(P.tab==='perf'){
@@ -92,37 +128,45 @@ function perfPage(){
     pchart('Spend by Conversion Value',keys,[one('Spent','money','Spent',PCOL[0],{kind:'bar'}),one('Conv. Value','money','Conversion value','#1aa57a',{axis:1})])+
     pchart('Orders by Device',keys,[one('Web Order','int','Web order',PCOL[0],{kind:'bar'}),one('In-app Order','int','In-app order',PCOL[1],{kind:'bar'})],{stack:1})+
     pchart(mn+' AOV & ROAS',keys,[one('AOV','money','AOV',PCOL[0]),one('ROAS','x','ROAS',PCOL[3],{axis:1})])+
-    pyoy('Spent','money','Spent')+pyoy('Orders','int','Orders')+pyoy('Conv. Value','money','Conversion Value')+pyoy('CIR','pct','CIR')+
+    (cr?pcmp('Spent','money','Spent')+pcmp('Orders','int','Orders')+pcmp('Conv. Value','money','Conversion Value')+pcmp('CIR','pct','CIR'):pyoy('Spent','money','Spent')+pyoy('Orders','int','Orders')+pyoy('Conv. Value','money','Conversion Value')+pyoy('CIR','pct','CIR'))+
     phbars('Funnel Conversion',useB.map(b=>{const t=tot(cur.filter(r=>r.Brand===b));return{l:b,v:[['LPV',PCOL[0]],['Add to Cart',PCOL[1]],['Checkout',PCOL[4]],['Orders',PCOL[2]]].map(([k,c])=>({v:t[k],t:'int',c}))}}),[['Landing page views',PCOL[0]],['Add to cart',PCOL[1]],['Checkout',PCOL[4]],['Orders',PCOL[2]]].map(([n,c])=>({n,c})))+
     pchart('Orders from New vs Existing Users',keys,[one('New Customer','int','New customer',PCOL[1],{kind:'bar'}),one('Existing CX','int','Existing customer',PCOL[0],{kind:'bar'})],{stack:1})+`</div>`;
   }else if(P.tab==='deliv'){
     body=`<div class="kpis">${kpi('Impressions','Impressions','int')}${kpi('Reach','Reach','int')}${kpi('CPM','CPM','money')}${kpi('Clicks','Clicks','int')}${kpi('Landing Page Views','LPV','int')}${kpi('CTR','CTR','pct')}${kpi('Freq.','Freq','num')}</div><div class="pgrid">`+
     pchart('Frequency & CTR (Ad Fatigue)',keys,[one('Freq','num','Frequency',PCOL[0],{kind:'bar'}),one('CTR','pct','CTR',PCOL[3],{axis:1})])+
+    (cr?pcmp('CPM','money','CPM')+pcmp('CTR','pct','CTR'):'')+
     pchart('CPM per Brand',keys,useB.map(b=>{const mp=totMap(cur.filter(r=>r.Brand===b),m);return{n:b,d:S(x=>x.CPM,mp),t:'money',c:bc(b),kind:'line'}}))+`</div>`;
   }else{
     const cols=[['Spent','money'],['Conv. Value','money'],['Orders','int'],['CPO','money'],['CIR','pct'],['ROAS','x'],['AOV','money'],['New Customer','int'],['CAC','money'],['CPM','money'],['CTR','pct'],['Freq','num'],['LPV','int']];
     const rowH=(l,t,b)=>`<tr${b?' class="tot"':''}><td class="stick">${esc(l)}</td>${cols.map(([k,ty])=>`<td class="num">${fv(ty,t[k])}</td>`).join('')}</tr>`;
-    body=`<div class="tbl"><table><thead><tr><th class="stick">${m==='weekly'?'Week (Mon–Sun)':m==='monthly'?'Month':'Day'}</th>${cols.map(([k])=>`<th>${k==='Freq'?'Freq.':k}</th>`).join('')}</tr></thead><tbody>${rowH('Total',T,1)}${keys.slice().reverse().filter(k=>cm[k]).map(k=>rowH(plabel(k,m,true),cm[k])).join('')}</tbody></table></div>`;
+    const chgRow=()=>`<tr class="cmpr"><td class="stick">Change</td>${cols.map(([k])=>{const ch=hasPrev?pctChg(T[k],PT[k]):null,c=chgCls(ch,k);return`<td class="num ${c==='good'?'dgood':c==='badd'?'dbad':''}">${chgTxt(ch)}</td>`}).join('')}</tr>`;
+    body=`<div class="tbl"><table><thead><tr><th class="stick">${m==='weekly'?'Week (Mon–Sun)':m==='monthly'?'Month':'Day'}</th>${cols.map(([k])=>`<th>${k==='Freq'?'Freq.':k}</th>`).join('')}</tr></thead><tbody>${rowH('Total',T,1)}${cr?rowH('Compared: '+plabel(cr.from,'daily',true)+' to '+plabel(cr.to,'daily',true),hasPrev?PT:tot([]),1).replace('class="tot"','class="tot cmpr"')+chgRow():''}${keys.slice().reverse().filter(k=>cm[k]).map(k=>rowH(plabel(k,m,true),cm[k])).join('')}</tbody></table></div>`;
   }
-  const sel=(id,opts,v)=>`<select class="f" id="${id}">${opts.map(([a,b])=>`<option value="${a}" ${a===v?'selected':''}>${esc(b)}</option>`).join('')}</select>`;
-  el.innerHTML=`<div class="pctl"><label class="dl"><span>Date range</span>${sel('pp',[['7','Last 7 days'],['30','Last 30 days'],['90','Last 90 days'],['mtd','This month'],['lm','Last month'],['ytd','Year to date'],['all','All time'],['custom','Custom']],P.preset)}</label>
-  <label class="dl"><span>From</span><input class="f" type="date" id="pf" value="${from}"></label><label class="dl"><span>To</span><input class="f" type="date" id="pt" value="${to}"></label>
+  const sel=(id,opts,v)=>`<select id="${id}">${opts.map(([a,b])=>`<option value="${a}" ${a===v?'selected':''}>${esc(b)}</option>`).join('')}</select>`;
+  const upd=BRANDS.filter(b=>PB[b.id]&&fmtUpd(PB[b.id].updated)).map(b=>`${b.short} ${fmtUpd(PB[b.id].updated)}`).join(' · ');
+  const stale=BRANDS.filter(b=>PERRS[b.id]);
+  el.innerHTML=(stale.length?`<div class="banner">Could not refresh ${stale.map(b=>esc(b.name)).join(', ')} (${esc(PERRS[stale[0].id])}). Showing the data saved ${rel(Math.min(...stale.map(b=>PB[b.id]?PB[b.id].ts:Date.now())))}. <button class="ghost sm" id="retry" style="margin-left:6px">Try again</button></div>`:'')+`<div class="actions"><a class="ghost btn-ic" href="${esc(LINKS.legacy)}" target="_blank" rel="noopener noreferrer">${ic('chart')}<span>Legacy Dashboard</span></a></div><div class="pctl"><label class="dl"><span>Date range</span>${sel('pp',[['7','Last 7 days'],['30','Last 30 days'],['90','Last 90 days'],['mtd','This month'],['lm','Last month'],['ytd','Year to date'],['all','All time'],['custom','Custom']],P.preset)}</label>
+  <label class="dl"><span>From</span><input type="date" id="pf" value="${from}"></label><label class="dl"><span>To</span><input type="date" id="pt" value="${to}"></label>
   <label class="dl"><span>Brand</span>${sel('pb',[['','All brands'],...brands.map(b=>[b,b])],P.brand)}</label>
-  <label class="dl"><span>Funnel</span>${sel('pfn',[['TOTAL','All funnels (total)'],['TOF','TOF'],['MOF','MOF'],['BOF','BOF']],P.funnel)}</label></div>
+  <label class="dl"><span>Funnel</span>${sel('pfn',[['TOTAL','All funnels (total)'],['TOF','TOF'],['MOF','MOF'],['BOF','BOF']],P.funnel)}</label>
+  <label class="dl"><span>Compare</span>${sel('pcm',[['','Off'],['wow','Week over week (WoW)'],['mom','Month over month (MoM)'],['yoy','Year over year (YoY)'],['custom','Custom period']],P.cmp)}</label>
+  ${P.cmp==='custom'?`<label class="dl"><span>Compare from</span><input type="date" id="pcf" value="${esc(P.cf)}"></label><label class="dl"><span>Compare to</span><input type="date" id="pct" value="${esc(P.ct)}"></label>`:''}</div>
   <div class="chips"><div class="seg">${[['daily','Daily'],['weekly','Weekly (Mon–Sun)'],['monthly','Monthly']].map(([v,l])=>`<button class="${m===v?'on':''}" data-pm="${v}">${l}</button>`).join('')}</div><span class="gap"></span><div class="seg">${[['perf','Performance'],['deliv','Delivery'],['table','Table']].map(([v,l])=>`<button class="${P.tab===v?'on':''}" data-ptab="${v}">${l}</button>`).join('')}</div></div>
-  <p class="note" style="margin:0 0 14px">${plabel(from,'daily',true)} to ${plabel(to,'daily',true)} · ${cur.length?new Set(cur.map(r=>r.Date)).size:0} days of data · latest data ${plabel(maxD,'daily',true)}</p>${body}
+  <p class="note" style="margin:0 0 14px">${cr?`Comparing with ${plabel(cr.from,'daily',true)} to ${plabel(cr.to,'daily',true)} (${CMPN[P.cmp]})${hasPrev?'':' · no data in that period'} · `:P.cmp==='custom'?'Pick the comparison dates above · ':''}${plabel(from,'daily',true)} to ${plabel(to,'daily',true)} · ${cur.length?new Set(cur.map(r=>r.Date)).size:0} days of data · latest data ${plabel(maxD,'daily',true)}${upd?` · Sheets updated: ${esc(upd)}`:''}</p>${body}
   <div class="guide"><b>CIR guide:</b> TOF 40–50% · MOF 30–40% · BOF 2–4% · Overall 15–25%. CIR is spend divided by conversion value.</div>`;
 }
 /* ---- events ---- */
 document.addEventListener('click',e=>{const t=e.target,c=s=>t.closest(s);
   if(c('[data-pm]')){P.mode=c('[data-pm]').dataset.pm;localStorage.setItem('trakks_pmode',P.mode);perfPage()}
   if(c('[data-ptab]')){P.tab=c('[data-ptab]').dataset.ptab;perfPage()}
-  if(t.id==='settings2')settings()});
+  });
 document.addEventListener('change',e=>{const t=e.target;
   if(t.id==='pp'){P.preset=t.value;perfPage()}
   if(t.id==='pf'||t.id==='pt'){P.preset='custom';P.from=$('#pf').value;P.to=$('#pt').value;perfPage()}
   if(t.id==='pb'){P.brand=t.value;perfPage()}
-  if(t.id==='pfn'){P.funnel=t.value;perfPage()}});
+  if(t.id==='pfn'){P.funnel=t.value;perfPage()}
+  if(t.id==='pcm'){P.cmp=t.value;if(P.cmp==='custom'&&!P.cf){const mx=PD.map(r=>r.Date).sort().pop();P.ct=addDays(mx,-30);P.cf=addDays(mx,-59)}perfPage()}
+  if(t.id==='pcf'||t.id==='pct'){P.cf=$('#pcf').value;P.ct=$('#pct').value;perfPage()}});
 let ptip=null;
 document.addEventListener('mousemove',e=>{const svg=e.target.closest&&e.target.closest('svg.pc');
   if(!ptip){ptip=document.createElement('div');ptip.className='tip';ptip.hidden=true;document.body.appendChild(ptip)}
